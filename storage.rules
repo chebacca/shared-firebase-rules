@@ -1,0 +1,467 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // ============================================================================
+    // UNIFIED STORAGE SECURITY RULES - ALL PROJECTS
+    // ============================================================================
+    // Supports: Dashboard, Licensing Website, Call Sheet App, EDL Converter, Parser Brain
+    // Handles all file uploads with proper organization-based access control
+    // Single source of truth for all Firebase Storage security rules
+    // ============================================================================
+    
+    // ============================================================================
+    // HELPER FUNCTIONS
+    // ============================================================================
+    
+    // Authentication check
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Get user's custom claims
+    function getUserClaims() {
+      return request.auth.token;
+    }
+    
+    // Get organization ID from user claims
+    function getOrganizationId() {
+      // Check if user has organizationId in custom claims
+      let orgId = getUserClaims().get('organizationId', '');
+      
+      // If no organizationId in claims, check if it's a standalone user
+      return orgId != '' ? orgId : 
+        (request.auth.token.email == 'standalone.user@example.com' || 
+         request.auth.token.email.matches('.*@example\\.com$')) ? 'standalone' : '';
+    }
+    
+    // Check if user belongs to organization
+    function belongsToOrganization(organizationId) {
+      // Allow standalone users to access standalone organization
+      return (organizationId == 'standalone' && 
+              (request.auth.token.email == 'standalone.user@example.com' || 
+               request.auth.token.email.matches('.*@example\\.com$'))) ||
+             (isAuthenticated() && (
+               // Check if user's primary organizationId matches
+               getOrganizationId() == organizationId ||
+               // Check secondary organizationId
+               (getUserClaims().get('secondaryOrganizationId', '') != '' && 
+                getUserClaims().get('secondaryOrganizationId', '') == organizationId) ||
+               // For admin users, allow access to any organization (more permissive)
+               // This helps with cases where organizationId might not match exactly
+               isOwnerOrAdmin()
+             ));
+    }
+    
+    // Check if user has specific role
+    function hasRole(role) {
+      return isAuthenticated() && getUserClaims().get('role', '') == role;
+    }
+    
+    // Check if user has any of the specified roles
+    function hasAnyRole(roles) {
+      return isAuthenticated() && getUserClaims().get('role', '') in roles;
+    }
+    
+    // Check if user has organizational role
+    function hasOrgRole(role) {
+      return isAuthenticated() && getUserClaims().get('teamMemberRole', '') == role;
+    }
+    
+    // Check if user has any organizational roles
+    function hasAnyOrgRole(roles) {
+      return isAuthenticated() && getUserClaims().get('teamMemberRole', '') in roles;
+    }
+    
+    // Check if user is owner or admin
+    function isOwnerOrAdmin() {
+      return hasAnyRole(['OWNER', 'ADMIN', 'SUPERADMIN', 'SUPER_ADMIN']) || 
+             hasAnyOrgRole(['owner', 'admin']) ||
+             getUserClaims().get('isAdmin', false) ||
+             getUserClaims().get('superAdmin', false) ||
+             getUserClaims().get('canAccessAdminPanel', false);
+    }
+    
+    // Check if user owns the file (userId field matches)
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Check if user can access project files
+    function canAccessProject(projectId) {
+      return isAuthenticated() && (
+        // Check if user has project assignment
+        projectId in getUserClaims().get('projectAssignments', {}) ||
+        // Check if user belongs to organization
+        belongsToOrganization(resource.metadata.organizationId) ||
+        // Allow standalone users
+        getOrganizationId() == 'standalone'
+      );
+    }
+    
+    // Check if user can modify project files
+    function canModifyProject(projectId) {
+      return isAuthenticated() && (
+        // Check if user is project admin
+        projectId in getUserClaims().get('projectAssignments', {}) &&
+        getUserClaims().get('projectAssignments', {})[projectId].get('baseRole', '') in ['ADMIN', 'DO_ER'] ||
+        // Check if user has organization admin role
+        hasAnyOrgRole(['admin', 'owner']) ||
+        // Allow standalone users
+        getOrganizationId() == 'standalone'
+      );
+    }
+    
+    // Check if user has EDL Converter access
+    function hasEDLConverterAccess() {
+      return isAuthenticated() && getUserClaims().get('isEDLConverter', false);
+    }
+    
+    // Check if user has Call Sheet access
+    function hasCallSheetAccess() {
+      return isAuthenticated() && getUserClaims().get('isCallSheetUser', false);
+    }
+    
+    // Check if user is standalone user
+    function isStandaloneUser() {
+      return isAuthenticated() && getUserClaims().get('isStandaloneUser', false);
+    }
+    
+    // Check if user has minimum hierarchy level
+    function hasMinimumHierarchy(minLevel) {
+      return isAuthenticated() && getUserClaims().get('effectiveHierarchy', 0) >= minLevel;
+    }
+    
+    // Check file size limits
+    function isValidFileSize() {
+      return resource.size < 100 * 1024 * 1024; // 100MB limit
+    }
+    
+    // Check file type
+    function isValidFileType() {
+      return resource.contentType.matches('image/.*') ||
+             resource.contentType.matches('video/.*') ||
+             resource.contentType.matches('audio/.*') ||
+             resource.contentType.matches('application/pdf') ||
+             resource.contentType.matches('text/.*') ||
+             resource.contentType.matches('application/json') ||
+             resource.contentType.matches('application/zip') ||
+             resource.contentType.matches('application/x-zip-compressed');
+    }
+    
+    // ============================================================================
+    // USER-SPECIFIC FILES
+    // ============================================================================
+    
+    // User profile images
+    match /users/{userId}/profile/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && request.auth.uid == userId && isValidFileSize() && isValidFileType();
+    }
+    
+    // User documents
+    match /users/{userId}/documents/{fileName} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow write: if isAuthenticated() && request.auth.uid == userId && isValidFileSize() && isValidFileType();
+    }
+    
+    // ============================================================================
+    // ORGANIZATION-SPECIFIC FILES
+    // ============================================================================
+    
+    // Organization assets
+    match /organizations/{orgId}/assets/{fileName} {
+      allow read: if isAuthenticated() && belongsToOrganization(orgId);
+      allow write: if isAuthenticated() && belongsToOrganization(orgId) && isOwnerOrAdmin() && isValidFileSize() && isValidFileType();
+    }
+    
+    // Organization documents
+    match /organizations/{orgId}/documents/{fileName} {
+      allow read: if isAuthenticated() && belongsToOrganization(orgId);
+      allow write: if isAuthenticated() && belongsToOrganization(orgId) && isOwnerOrAdmin() && isValidFileSize() && isValidFileType();
+    }
+    
+    // ============================================================================
+    // PROJECT-SPECIFIC FILES
+    // ============================================================================
+    
+    // Project assets
+    match /projects/{projectId}/assets/{fileName} {
+      allow read: if isAuthenticated() && canAccessProject(projectId);
+      allow write: if isAuthenticated() && canModifyProject(projectId) && isValidFileSize() && isValidFileType();
+    }
+    
+    // Project deliverables
+    match /projects/{projectId}/deliverables/{fileName} {
+      allow read: if isAuthenticated() && canAccessProject(projectId);
+      allow write: if isAuthenticated() && canModifyProject(projectId) && isValidFileSize() && isValidFileType();
+    }
+    
+    // Project media files
+    match /projects/{projectId}/media/{fileName} {
+      allow read: if isAuthenticated() && canAccessProject(projectId);
+      allow write: if isAuthenticated() && canModifyProject(projectId) && isValidFileSize() && isValidFileType();
+    }
+    
+    // Project reports
+    match /projects/{projectId}/reports/{fileName} {
+      allow read: if isAuthenticated() && canAccessProject(projectId);
+      allow write: if isAuthenticated() && canModifyProject(projectId) && isValidFileSize() && isValidFileType();
+    }
+    
+    // ============================================================================
+    // CALL SHEET APP FILES
+    // ============================================================================
+    
+    // Call sheet templates
+    match /callsheets/templates/{fileName} {
+      allow read: if isAuthenticated() && hasCallSheetAccess();
+      allow write: if isAuthenticated() && hasCallSheetAccess() && isValidFileSize() && isValidFileType();
+    }
+    
+    // Call sheet exports
+    match /callsheets/exports/{fileName} {
+      allow read: if isAuthenticated() && hasCallSheetAccess();
+      allow write: if isAuthenticated() && hasCallSheetAccess() && isValidFileSize() && isValidFileType();
+    }
+    
+    // Call sheet attachments
+    match /callsheets/{callSheetId}/attachments/{fileName} {
+      allow read: if isAuthenticated() && hasCallSheetAccess();
+      allow write: if isAuthenticated() && hasCallSheetAccess() && isValidFileSize() && isValidFileType();
+    }
+    
+    // ============================================================================
+    // EDL CONVERTER FILES
+    // ============================================================================
+    
+    // EDL files
+    match /edl/files/{fileName} {
+      allow read: if isAuthenticated() && hasEDLConverterAccess();
+      allow write: if isAuthenticated() && hasEDLConverterAccess() && isValidFileSize() && isValidFileType();
+    }
+    
+    // EDL exports
+    match /edl/exports/{fileName} {
+      allow read: if isAuthenticated() && hasEDLConverterAccess();
+      allow write: if isAuthenticated() && hasEDLConverterAccess() && isValidFileSize() && isValidFileType();
+    }
+    
+    // EDL project files
+    match /edl/projects/{projectId}/{fileName} {
+      allow read: if isAuthenticated() && hasEDLConverterAccess() && (
+        belongsToOrganization(resource.metadata.organizationId) ||
+        getOrganizationId() == 'standalone' ||
+        resource.metadata.userId == request.auth.uid
+      );
+      allow write: if isAuthenticated() && hasEDLConverterAccess() && (
+        belongsToOrganization(request.resource.metadata.organizationId) ||
+        getOrganizationId() == 'standalone' ||
+        request.resource.metadata.userId == request.auth.uid
+      ) && isValidFileSize() && isValidFileType();
+    }
+    
+    // ============================================================================
+    // PARSER BRAIN FILES
+    // ============================================================================
+    
+    // Pattern files
+    match /parser/patterns/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && hasMinimumHierarchy(50) && isValidFileSize() && isValidFileType();
+    }
+    
+    // Analysis results
+    match /parser/results/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && isValidFileSize() && isValidFileType();
+    }
+    
+    // ============================================================================
+    // CLIP SHOW PRO - LICENSE MANAGEMENT FILES
+    // ============================================================================
+    
+    // Signed documents for license agreements
+    // Path: signed-documents/{organizationId}/{licenseId}/{fileName}
+    match /signed-documents/{organizationId}/{licenseId}/{fileName} {
+      // Allow read for authenticated users in the organization
+      allow read: if isAuthenticated() && belongsToOrganization(organizationId);
+      
+      // Allow write (upload) for authenticated users in the organization
+      // Must be PDF and under 10MB
+      allow write: if isAuthenticated() 
+                   && belongsToOrganization(organizationId)
+                   && request.resource.contentType == 'application/pdf'
+                   && request.resource.size <= 10 * 1024 * 1024; // 10MB limit
+      
+      // Allow delete for authenticated users in the organization
+      allow delete: if isAuthenticated() && belongsToOrganization(organizationId);
+    }
+    
+    // License templates
+    // Path: license-templates/{organizationId}/{templateName}/{fileName}
+    match /license-templates/{organizationId}/{templateName}/{fileName} {
+      // Allow read for authenticated users in the organization
+      allow read: if isAuthenticated() && belongsToOrganization(organizationId);
+      
+      // Allow write (upload) for authenticated users in the organization
+      // Must be PDF and under 10MB
+      allow write: if isAuthenticated() 
+                   && belongsToOrganization(organizationId)
+                   && request.resource.contentType == 'application/pdf'
+                   && request.resource.size <= 10 * 1024 * 1024; // 10MB limit
+      
+      // Allow delete for authenticated users in the organization
+      allow delete: if isAuthenticated() && belongsToOrganization(organizationId);
+    }
+    
+    // ============================================================================
+    // CLIP SHOW PRO - STORY FILES
+    // ============================================================================
+    
+    // Story documents
+    // Path: story-documents/{organizationId}/{storyId}/{fileName}
+    match /story-documents/{organizationId}/{storyId}/{fileName} {
+      // Allow read for authenticated users in the organization
+      allow read: if isAuthenticated() && belongsToOrganization(organizationId);
+      
+      // Allow write (upload) for authenticated users in the organization
+      // Max 50MB file size
+      allow write: if isAuthenticated() 
+                   && belongsToOrganization(organizationId)
+                   && request.resource.size <= 50 * 1024 * 1024; // 50MB limit
+      
+      // Allow delete for authenticated users in the organization
+      allow delete: if isAuthenticated() && belongsToOrganization(organizationId);
+    }
+    
+    // Story VO audio files
+    // Path: story-vo-audio/{organizationId}/{storyId}/{fileName}
+    match /story-vo-audio/{organizationId}/{storyId}/{fileName} {
+      // Allow read for authenticated users in the organization
+      allow read: if isAuthenticated() && belongsToOrganization(organizationId);
+      
+      // Allow write (upload) for authenticated users in the organization
+      // Must be audio file and under 50MB
+      allow write: if isAuthenticated() 
+                   && belongsToOrganization(organizationId)
+                   && (request.resource.contentType.matches('audio/.*') ||
+                       request.resource.name.matches('.*\\.(mp3|wav|aac|flac|ogg|m4a|wma|aiff|opus|3gp|mpga|mp2)$'))
+                   && request.resource.size <= 50 * 1024 * 1024; // 50MB limit
+      
+      // Allow delete for authenticated users in the organization
+      allow delete: if isAuthenticated() && belongsToOrganization(organizationId);
+    }
+    
+    // ============================================================================
+    // CLIP SHOW PRO - COLLABORATION DOCUMENTS
+    // ============================================================================
+    
+    // Collaboration documents for Yjs real-time editing
+    // Path: collaboration/script-{storyId}/{timestamp}.yjs
+    // Allows authenticated users to store Yjs collaboration state for script editing
+    // These are large binary files used for real-time collaborative editing
+    match /collaboration/{allPaths=**} {
+      // Allow read for authenticated users (collaboration documents are shared)
+      allow read: if isAuthenticated();
+      
+      // Allow write (upload) for authenticated users
+      // Max 20MB file size (Yjs state files can be large)
+      allow write: if isAuthenticated() 
+                   && request.resource.size <= 20 * 1024 * 1024; // 20MB limit
+      
+      // Allow delete for authenticated users
+      allow delete: if isAuthenticated();
+    }
+    
+    // ============================================================================
+    // SYSTEM FILES
+    // ============================================================================
+    
+    // System backups
+    match /system/backups/{fileName} {
+      allow read: if isAuthenticated() && isOwnerOrAdmin();
+      allow write: if isAuthenticated() && isOwnerOrAdmin() && isValidFileSize() && isValidFileType();
+    }
+    
+    // System logs
+    match /system/logs/{fileName} {
+      allow read: if isAuthenticated() && isOwnerOrAdmin();
+      allow write: if isAuthenticated() && isOwnerOrAdmin() && isValidFileSize() && isValidFileType();
+    }
+    
+    // ============================================================================
+    // PUBLIC FILES
+    // ============================================================================
+    
+    // Public assets (read-only for all authenticated users)
+    match /public/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && isOwnerOrAdmin() && isValidFileSize() && isValidFileType();
+    }
+    
+    // ============================================================================
+    // TRANSCRIPTION TASKS - Async video transcription temporary storage
+    // ============================================================================
+    
+    // Transcription task video files (stored temporarily during processing)
+    // Path: transcription-tasks/{organizationId}/{taskId}/{fileName}
+    match /transcription-tasks/{organizationId}/{taskId}/{fileName} {
+      // Allow read for authenticated users in the organization
+      allow read: if isAuthenticated() && belongsToOrganization(organizationId);
+      
+      // Allow write (upload) for authenticated users in the organization
+      // Must be video file, max 2GB for Gemini Pro
+      allow write: if isAuthenticated() 
+                   && belongsToOrganization(organizationId)
+                   && request.resource.contentType.matches('video/.*')
+                   && request.resource.size <= 2 * 1024 * 1024 * 1024; // 2GB limit
+      
+      // Allow delete for authenticated users in the organization or system cleanup
+      allow delete: if isAuthenticated() && belongsToOrganization(organizationId);
+    }
+    
+    // ============================================================================
+    // TEMPORARY FILES
+    // ============================================================================
+    
+    // Temporary uploads (short-lived)
+    match /temp/{userId}/{fileName} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow write: if isAuthenticated() && request.auth.uid == userId && isValidFileSize() && isValidFileType();
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // ============================================================================
+    // CLIP SHOW PRO - USER FILES (NATIVE FIREBASE STORAGE)
+    // ============================================================================
+    
+    // User Files - Native Firebase Storage
+    // Path: organizations/{organizationId}/user-files/{allPaths=**}
+    // Allows organization members to upload and manage their own files
+    // Supports video, audio, documents, images - general file storage
+    match /organizations/{organizationId}/user-files/{allPaths=**} {
+      // Allow read for authenticated users in the organization
+      allow read: if isAuthenticated() && belongsToOrganization(organizationId);
+      
+      // Allow write (upload) for authenticated users in the organization
+      // Max 500MB file size for large media files
+      allow write: if isAuthenticated() 
+                   && belongsToOrganization(organizationId)
+                   && request.resource.size <= 500 * 1024 * 1024; // 500MB limit
+      
+      // Allow delete for authenticated users in the organization
+      allow delete: if isAuthenticated() && belongsToOrganization(organizationId);
+    }
+    
+    // ============================================================================
+    // CATCH-ALL RULE
+    // ============================================================================
+    
+    // Explicit deny for unmatched paths
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
