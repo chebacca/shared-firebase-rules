@@ -257,6 +257,25 @@ service cloud.firestore {
       );
     }
     
+    // Check if user has Parser Brain access
+    function hasParserBrainAccess() {
+      return isAuthenticated() && (
+        getUserClaims().get('parserBrainAccess', false) ||
+        getUserClaims().get('superAdmin', false) ||
+        getUserClaims().get('isParserBrainUser', false) ||
+        'PARSER_BRAIN' in getUserClaims().get('permissions', []) ||
+        'parserBrain' in getUserClaims().get('permissions', []) ||
+        getUserClaims().get('role', '') == 'SUPERADMIN' ||
+        getUserClaims().get('role', '') == 'SUPER_ADMIN' ||
+        getUserClaims().get('role', '') == 'ADMIN' ||
+        hasMinimumHierarchy(90) ||
+        // Organization owners and team member admins have access
+        hasAnyOrgRole(['owner', 'admin']) ||
+        // Special handling for admin.clipshow@example.com
+        request.auth.token.email == 'admin.clipshow@example.com'
+      );
+    }
+    
     // Check if user has access to indexed files (either Clip Show Pro or Cue Sheet)
     function hasIndexedFilesAccess() {
       return hasClipShowProAccess() || hasCueSheetAccess();
@@ -1044,6 +1063,20 @@ service cloud.firestore {
         && request.auth.uid == request.resource.data.senderId;
     }
     
+    // User Sessions - User session data for syncing across devices/tabs
+    // Users can only read/write their own session data
+    match /userSessions/{userId} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+      allow create: if isAuthenticated() 
+        && request.auth.uid == userId
+        && request.resource.data.userId == userId;
+      allow update: if isAuthenticated() 
+        && request.auth.uid == userId
+        && resource.data.userId == userId;
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+    
     // ============================================================================
     // EDL CONVERTER COLLECTIONS
     // ============================================================================
@@ -1132,22 +1165,65 @@ service cloud.firestore {
     // PARSER BRAIN COLLECTIONS
     // ============================================================================
     
+    // Parser Brain Admin Users - Users with admin access to Parser Brain
+    match /parsing-admin-users/{userId} {
+      // Allow users to read their own admin user document
+      // Also allow org owners and admins to read
+      allow read: if isAuthenticated() && (
+        request.auth.uid == userId ||
+        hasParserBrainAccess() ||
+        hasAnyOrgRole(['owner', 'admin'])
+      );
+      // Org owners/admins and users with parserBrainAccess can write
+      allow write: if isAuthenticated() && (
+        hasParserBrainAccess() ||
+        isOwnerOrAdmin() ||
+        hasAnyOrgRole(['owner', 'admin'])
+      );
+    }
+    
     // Parsing patterns
     match /parsing-patterns/{patternId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && hasMinimumHierarchy(50);
+      allow read: if isAuthenticated() && (
+        hasParserBrainAccess() ||
+        hasAnyOrgRole(['owner', 'admin']) ||
+        isOwnerOrAdmin()
+      );
+      allow write: if isAuthenticated() && (
+        hasParserBrainAccess() ||
+        hasAnyOrgRole(['owner', 'admin']) ||
+        hasMinimumHierarchy(50) ||
+        isOwnerOrAdmin()
+      );
     }
     
     // Pattern statistics
     match /pattern-statistics/{statId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && hasMinimumHierarchy(50);
+      allow read: if isAuthenticated() && (
+        hasParserBrainAccess() ||
+        hasAnyOrgRole(['owner', 'admin']) ||
+        isOwnerOrAdmin()
+      );
+      allow write: if isAuthenticated() && (
+        hasParserBrainAccess() ||
+        hasAnyOrgRole(['owner', 'admin']) ||
+        hasMinimumHierarchy(50) ||
+        isOwnerOrAdmin()
+      );
     }
     
     // Pattern submissions
     match /pattern-submissions/{submissionId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+      allow read: if isAuthenticated() && (
+        hasParserBrainAccess() ||
+        hasAnyOrgRole(['owner', 'admin']) ||
+        isOwnerOrAdmin()
+      );
+      allow write: if isAuthenticated() && (
+        hasParserBrainAccess() ||
+        hasAnyOrgRole(['owner', 'admin']) ||
+        isOwnerOrAdmin()
+      );
     }
     
     // ============================================================================
