@@ -332,6 +332,18 @@ service cloud.firestore {
       allow update: if isAuthenticated();
     }
     
+    // Data Sync Events - Cross-device data synchronization
+    match /dataSyncEvents/{eventId} {
+      // Users can read their own sync events
+      // For collection queries: Firestore validates that the query filters match the rules
+      // The query filters by userId == auth.uid, so we allow reads where userId matches
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      // Users can create sync events for themselves
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      // Users can update/delete their own sync events
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+    
     // Project Assignments - Project assignment data
     match /projectAssignments/{assignmentId} {
       allow read: if isAuthenticated() && (
