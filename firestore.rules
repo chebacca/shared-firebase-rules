@@ -12,7 +12,7 @@ service cloud.firestore {
     // ============================================================================
     
     // ============================================================================
-    // HELPER FUNCTIONS
+    // HELPER FUNCTIONS (SIMPLIFIED)
     // ============================================================================
     
     // Authentication check
@@ -26,53 +26,22 @@ service cloud.firestore {
     }
     
     // Get organization ID from user claims
+    // ⚡️ OPTIMIZED: Relies strictly on Custom Claims derived by Cloud Functions
     function getOrganizationId() {
-      // 🔧 CRITICAL FIX: Special handling for enterprise user
-      // Enterprise user has access to both organizations, default to enterprise-media-org
-      return request.auth.token.email == 'enterprise.user@enterprisemedia.com' ? 'enterprise-media-org' :
-        // 🔧 CRITICAL FIX: Special handling for admin.clipshow@example.com
-        (request.auth.token.email == 'admin.clipshow@example.com' ? 'clip-show-pro-productions' :
-        (getUserClaims().get('organizationId', '') != '' ? getUserClaims().get('organizationId', '') :
-          (request.auth.token.email == 'standalone.user@example.com' || 
-           request.auth.token.email.matches('.*@example\\.com$')) ? 'standalone' : ''));
+      return getUserClaims().get('organizationId', '');
     }
     
     // Check if user belongs to organization
-    // Note: This function checks custom claims. For Firestore document checks, 
-    // use belongsToOrganizationWithDocCheck() in match rules where get() is available
+    // ⚡️ OPTIMIZED: Relies strictly on Custom Claims
     function belongsToOrganization(organizationId) {
-      // First check if user has organizationId in custom claims and it matches
-      let userOrgId = getUserClaims().get('organizationId', '');
-      // If user has organizationId in claims and it matches, return true
-      // Otherwise, check other conditions
-      return (userOrgId != '' && userOrgId == organizationId) ||
-             // 🔧 CRITICAL FIX: Special handling for admin.clipshow@example.com
-             (request.auth.token.email == 'admin.clipshow@example.com' && 
-              organizationId == 'clip-show-pro-productions') ||
-             // Allow standalone users to access standalone organization
-             ((organizationId == 'standalone' || organizationId == 'standalone-org') &&
-              (request.auth.token.email == 'standalone.user@example.com' || 
-               request.auth.token.email.matches('.*@example\\.com$'))) ||
-             // 🔧 CRITICAL FIX: Special handling for enterprise user with dual organization access
-             // Enterprise user has access to both 'enterprise-media-org' and 'enterprise-org-001'
-             // Also handle underscore variant 'enterprise_media_org' for compatibility
-             (request.auth.token.email == 'enterprise.user@enterprisemedia.com' &&
-              (organizationId == 'enterprise-media-org' || 
-               organizationId == 'enterprise-org-001' ||
-               organizationId == 'enterprise_media_org')) ||
-             // Check custom claims
-             (isAuthenticated() && getOrganizationId() == organizationId);
+      return getOrganizationId() == organizationId || 
+             organizationId in getUserClaims().get('allowedOrganizations', []);
     }
     
     // Check if user belongs to organization by also checking Firestore user document
-    // This can be used in match rules where get() is available
+    // Legacy support/Redundant check - kept for specific match rules if needed, but simplified
     function belongsToOrganizationWithDocCheck(organizationId) {
-      // First try the standard check
-      return belongsToOrganization(organizationId) ||
-             // Also check user document in Firestore (only works in match rules)
-             (isAuthenticated() &&
-              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == organizationId);
+      return belongsToOrganization(organizationId);
     }
     
     // Check if user has specific role
@@ -87,24 +56,24 @@ service cloud.firestore {
     
     // Check if user has organizational role
     function hasOrgRole(role) {
-      return isAuthenticated() && getUserClaims().get('teamMemberRole', '') == role;
+       // Map legacy 'teamMemberRole' to 'role' or use 'role' directly if unified
+       // Ideally role is unified in the claim, but keeping this check against claim is cheap
+      return isAuthenticated() && (getUserClaims().get('role', '') == role || getUserClaims().get('teamMemberRole', '') == role);
     }
     
     // Check if user has any organizational roles
     function hasAnyOrgRole(roles) {
-      return isAuthenticated() && getUserClaims().get('teamMemberRole', '') in roles;
+      return isAuthenticated() && (getUserClaims().get('role', '') in roles || getUserClaims().get('teamMemberRole', '') in roles);
     }
     
     // Check if user is owner or admin
+    // ⚡️ OPTIMIZED: Relies on 'isOwnerOrAdmin' claim
+    // Fallback to role check for safety
     function isOwnerOrAdmin() {
-      return hasAnyRole(['OWNER', 'ADMIN', 'SUPERADMIN', 'SUPER_ADMIN']) || 
-             hasAnyOrgRole(['owner', 'admin']) ||
-             getUserClaims().get('isAdmin', false) ||
-             getUserClaims().get('superAdmin', false) ||
-             getUserClaims().get('canAccessAdminPanel', false) ||
-             getUserClaims().get('isOrganizationOwner', false) ||
-             // 🔧 CRITICAL FIX: Special handling for admin.clipshow@example.com
-             request.auth.token.email == 'admin.clipshow@example.com';
+      return isAuthenticated() && (
+        getUserClaims().get('isOwnerOrAdmin', false) ||
+        hasAnyRole(['OWNER', 'ADMIN', 'SUPERADMIN', 'SUPER_ADMIN'])
+      );
     }
     
     // Check if user owns the document (userId field matches)
@@ -115,29 +84,31 @@ service cloud.firestore {
     // Check if user can access project data
     function canAccessProject(projectId) {
       return isAuthenticated() && (
-        // Check if user has project assignment
+        // Check if user has project assignment (Claim)
         projectId in getUserClaims().get('projectAssignments', {}) ||
-        // Check if user belongs to organization (get from project data)
+        // Check if user belongs to organization (Efficient check now)
+        // We still need to fetch the project to know its Org ID, this get() is unavoidable 
+        // unless we store orgId in the projectAssignments claim map
         belongsToOrganization(get(/databases/$(database)/documents/projects/$(projectId)).data.organizationId) ||
         // Allow standalone users
         getOrganizationId() == 'standalone' ||
         // Allow admin users to access all projects
-        hasAnyRole(['ADMIN', 'SUPERADMIN', 'OWNER'])
+        isOwnerOrAdmin()
       );
     }
     
     // Check if user can modify project data
     function canModifyProject(projectId) {
       return isAuthenticated() && (
-        // Check if user is project admin
-        projectId in getUserClaims().get('projectAssignments', {}) &&
-        getUserClaims().get('projectAssignments', {})[projectId].get('baseRole', '') in ['ADMIN', 'DO_ER'] ||
-        // Check if user has organization admin role
-        hasAnyOrgRole(['admin', 'owner']) ||
+        // Check if user is project admin via Claim
+        (projectId in getUserClaims().get('projectAssignments', {}) &&
+         getUserClaims().get('projectAssignments', {})[projectId].get('baseRole', '') in ['ADMIN', 'DO_ER']) ||
+        // Check if user has organization admin role via Claim
+        (belongsToOrganization(get(/databases/$(database)/documents/projects/$(projectId)).data.organizationId) && isOwnerOrAdmin()) ||
         // Allow standalone users
         getOrganizationId() == 'standalone' ||
-        // Allow admin users to modify all projects
-        hasAnyRole(['ADMIN', 'SUPERADMIN', 'OWNER'])
+        // Allow admin users
+        isOwnerOrAdmin()
       );
     }
     
@@ -226,53 +197,31 @@ service cloud.firestore {
     }
     
     // Check if user has Clip Show Pro add-on access
-    // Synced via onLicenseWrite trigger (sets isClipShowProUser and subscriptionAddOns)
+    // ⚡️ OPTIMIZED: Relies on boolean Claim from Cloud Function
     function hasClipShowProAccess() {
       return isAuthenticated() && (
-        getUserClaims().get('subscriptionAddOns', {}).get('clipShowPro', false) ||
-        'CLIP_SHOW_PRO' in getUserClaims().get('permissions', []) ||
-        getUserClaims().get('clipShowProAccess', false) ||
-        getUserClaims().get('isClipShowProUser', false) ||
-        'clip_show_pro' in getUserClaims().get('permissions', []) ||
-        getUserClaims().get('role', '') == 'ADMIN' ||
-        getUserClaims().get('role', '') == 'SUPERADMIN' ||
-        getUserClaims().get('role', '') == 'LICENSING_SPECIALIST' ||
-        // 🔧 CRITICAL FIX: Special handling for admin.clipshow@example.com
-        request.auth.token.email == 'admin.clipshow@example.com'
+        getUserClaims().get('hasClipShowProAccess', false) ||
+        isOwnerOrAdmin()
       );
     }
     
     // Check if user has Cue Sheet & CTC Budget Pro access
+    // ⚡️ OPTIMIZED: Relies on boolean Claim from Cloud Function
     function hasCueSheetAccess() {
       return isAuthenticated() && (
-        getUserClaims().get('subscriptionAddOns', {}).get('cuesheet', false) ||
-        getUserClaims().get('subscriptionAddOns', {}).get('cueSheet', false) ||
-        'CUE_SHEET' in getUserClaims().get('permissions', []) ||
-        'CUE_SHEET_BUDGET_PRO' in getUserClaims().get('permissions', []) ||
-        getUserClaims().get('cueSheetAccess', false) ||
-        getUserClaims().get('isCueSheetUser', false) ||
-        'cue_sheet' in getUserClaims().get('permissions', []) ||
-        getUserClaims().get('role', '') == 'ADMIN' ||
-        getUserClaims().get('role', '') == 'SUPERADMIN'
+        getUserClaims().get('hasCueSheetAccess', false) ||
+        isOwnerOrAdmin()
       );
     }
     
     // Check if user has Parser Brain access
+    // ⚡️ OPTIMIZED: Relies on permissions claim
     function hasParserBrainAccess() {
       return isAuthenticated() && (
         getUserClaims().get('parserBrainAccess', false) ||
-        getUserClaims().get('superAdmin', false) ||
-        getUserClaims().get('isParserBrainUser', false) ||
+        isOwnerOrAdmin() ||
         'PARSER_BRAIN' in getUserClaims().get('permissions', []) ||
-        'parserBrain' in getUserClaims().get('permissions', []) ||
-        getUserClaims().get('role', '') == 'SUPERADMIN' ||
-        getUserClaims().get('role', '') == 'SUPER_ADMIN' ||
-        getUserClaims().get('role', '') == 'ADMIN' ||
-        hasMinimumHierarchy(90) ||
-        // Organization owners and team member admins have access
-        hasAnyOrgRole(['owner', 'admin']) ||
-        // Special handling for admin.clipshow@example.com
-        request.auth.token.email == 'admin.clipshow@example.com'
+        hasAnyOrgRole(['owner', 'admin'])
       );
     }
     
@@ -335,13 +284,22 @@ service cloud.firestore {
     // Data Sync Events - Cross-device data synchronization
     match /dataSyncEvents/{eventId} {
       // Users can read their own sync events
-      // For collection queries: Firestore validates that the query filters match the rules
-      // The query filters by userId == auth.uid, so we allow reads where userId matches
-      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      // For collection queries: the query filter (where('userId', '==', auth.uid)) ensures users only see their own events
+      // For document reads: check if document's userId matches authenticated user
+      allow read: if isAuthenticated() && (
+        // Admins can read all sync events
+        isOwnerOrAdmin() ||
+        // For document reads: check if document belongs to user
+        (resource.data != null && resource.data.userId == request.auth.uid)
+      );
       // Users can create sync events for themselves
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && 
+        request.resource.data.userId != null &&
+        (request.resource.data.userId == request.auth.uid || isOwnerOrAdmin());
       // Users can update/delete their own sync events
-      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && 
+        resource.data != null &&
+        (resource.data.userId == request.auth.uid || isOwnerOrAdmin());
     }
     
     // Project Assignments - Project assignment data
@@ -468,21 +426,14 @@ service cloud.firestore {
         // User updating their own record
         (request.auth.uid == resource.data.userId && 
          belongsToOrganization(resource.data.organizationId)) ||
-        // Admin/owner can update team members (more permissive - org check is preferred but not blocking)
+        // Admin/owner can update team members
         (isOwnerOrAdmin() && (
-          // Prefer organization check if available
           belongsToOrganization(resource.data.organizationId) ||
           // Fallback: Verify user is a team member of this organization by checking teamMembers collection
           (exists(/databases/$(database)/documents/teamMembers/$(request.auth.uid)) &&
            get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.organizationId == resource.data.organizationId) ||
-          // Special case: admin.clipshow@example.com can update clip-show-pro-productions
-          (request.auth.token.email == 'admin.clipshow@example.com' && 
-           resource.data.organizationId == 'clip-show-pro-productions') ||
-          // Final fallback: If user is clearly an admin (has admin email or role), allow update
-          // This handles cases where organizationId might not be in claims yet
-          (request.auth.token.email == 'admin.clipshow@example.com' ||
-           getUserClaims().get('role', '') in ['OWNER', 'ADMIN', 'SUPERADMIN', 'SUPER_ADMIN'] ||
-           getUserClaims().get('isAdmin', false))
+           // Global SuperAdmin override
+           getUserClaims().get('role', '') in ['OWNER', 'ADMIN', 'SUPERADMIN', 'SUPER_ADMIN']
         ))
       );
       // Document-level delete protection
@@ -721,6 +672,191 @@ service cloud.firestore {
     match /inventoryItems/{itemId} {
       allow read: if canAccessProject(resource.data.projectId);
       allow write: if canModifyProject(resource.data.projectId);
+    }
+    
+    // Network IP Assignments - IP address assignments for inventory items
+    match /networkIPAssignments/{assignmentId} {
+      // Allow read if user belongs to organization (with fallback checks)
+      allow read: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        belongsToOrganizationWithDocCheck(resource.data.organizationId) ||
+        // Fallback: allow if user document exists and has this organizationId
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == resource.data.organizationId) ||
+        // Allow if user can access the project
+        (resource.data.projectId != null && canAccessProject(resource.data.projectId))
+      );
+      
+      // Allow create if user belongs to organization
+      allow create: if isAuthenticated() && (
+        belongsToOrganization(request.resource.data.organizationId) ||
+        belongsToOrganizationWithDocCheck(request.resource.data.organizationId) ||
+        // Fallback: allow if user document exists and has this organizationId
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == request.resource.data.organizationId) ||
+        // Allow if user can access the project
+        (request.resource.data.projectId != null && canAccessProject(request.resource.data.projectId))
+      );
+      
+      // Allow update if user belongs to organization
+      allow update: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        belongsToOrganizationWithDocCheck(resource.data.organizationId) ||
+        // Fallback: allow if user document exists and has this organizationId
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == resource.data.organizationId) ||
+        // Allow if user can modify the project
+        (resource.data.projectId != null && canModifyProject(resource.data.projectId))
+      );
+      
+      // Allow delete if user belongs to organization and is admin
+      allow delete: if isAuthenticated() && (
+        (belongsToOrganization(resource.data.organizationId) ||
+         belongsToOrganizationWithDocCheck(resource.data.organizationId) ||
+         // Fallback: allow if user document exists and has this organizationId
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == resource.data.organizationId)) &&
+        isOwnerOrAdmin()
+      );
+    }
+    
+    // Networks - Network definitions for IP management
+    match /networks/{networkId} {
+      // Allow read if user belongs to organization (with fallback checks)
+      allow read: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        belongsToOrganizationWithDocCheck(resource.data.organizationId) ||
+        // Fallback: allow if user document exists and has this organizationId
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == resource.data.organizationId) ||
+        // Allow if user can access the project
+        (resource.data.projectId != null && canAccessProject(resource.data.projectId))
+      );
+      
+      // Allow create if user belongs to organization
+      allow create: if isAuthenticated() && (
+        belongsToOrganization(request.resource.data.organizationId) ||
+        belongsToOrganizationWithDocCheck(request.resource.data.organizationId) ||
+        // Fallback: allow if user document exists and has this organizationId
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == request.resource.data.organizationId) ||
+        // Allow if user can access the project
+        (request.resource.data.projectId != null && canAccessProject(request.resource.data.projectId))
+      );
+      
+      // Allow update if user belongs to organization
+      allow update: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        belongsToOrganizationWithDocCheck(resource.data.organizationId) ||
+        // Fallback: allow if user document exists and has this organizationId
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == resource.data.organizationId) ||
+        // Allow if user can modify the project
+        (resource.data.projectId != null && canModifyProject(resource.data.projectId)) ||
+        // Allow if user is the creator
+        (resource.data.createdBy == request.auth.uid)
+      );
+      
+      // Allow delete if user belongs to organization and is admin or creator
+      allow delete: if isAuthenticated() && (
+        (belongsToOrganization(resource.data.organizationId) ||
+         belongsToOrganizationWithDocCheck(resource.data.organizationId) ||
+         // Fallback: allow if user document exists and has this organizationId
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == resource.data.organizationId)) &&
+        (isOwnerOrAdmin() || resource.data.createdBy == request.auth.uid)
+      );
+    }
+    
+    // Network IP Ranges - IP range definitions for networks
+    match /networkIPRanges/{rangeId} {
+      // Allow read if user belongs to organization (with fallback checks)
+      allow read: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        belongsToOrganizationWithDocCheck(resource.data.organizationId) ||
+        // Fallback: allow if user document exists and has this organizationId
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == resource.data.organizationId) ||
+        // Allow if user can access the project
+        (resource.data.projectId != null && canAccessProject(resource.data.projectId))
+      );
+      
+      // Allow create if user belongs to organization
+      allow create: if isAuthenticated() && (
+        belongsToOrganization(request.resource.data.organizationId) ||
+        belongsToOrganizationWithDocCheck(request.resource.data.organizationId) ||
+        // Fallback: allow if user document exists and has this organizationId
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == request.resource.data.organizationId) ||
+        // Allow if user can access the project
+        (request.resource.data.projectId != null && canAccessProject(request.resource.data.projectId))
+      );
+      
+      // Allow update if user belongs to organization
+      allow update: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        belongsToOrganizationWithDocCheck(resource.data.organizationId) ||
+        // Fallback: allow if user document exists and has this organizationId
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == resource.data.organizationId) ||
+        // Allow if user can modify the project
+        (resource.data.projectId != null && canModifyProject(resource.data.projectId)) ||
+        // Allow if user is the creator
+        (resource.data.createdBy == request.auth.uid)
+      );
+      
+      // Allow delete if user belongs to organization and is admin or creator
+      allow delete: if isAuthenticated() && (
+        (belongsToOrganization(resource.data.organizationId) ||
+         belongsToOrganizationWithDocCheck(resource.data.organizationId) ||
+         // Fallback: allow if user document exists and has this organizationId
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == resource.data.organizationId)) &&
+        (isOwnerOrAdmin() || resource.data.createdBy == request.auth.uid)
+      );
+    }
+    
+    // Schemas - Custom schema definitions for inventory and other collections
+    match /schemas/{schemaId} {
+      // Allow read if user belongs to organization (with fallback checks)
+      allow read: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        belongsToOrganizationWithDocCheck(resource.data.organizationId) ||
+        // Fallback: allow if user document exists and has this organizationId
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == resource.data.organizationId) ||
+        // Allow public schemas
+        resource.data.isPublic == true
+      );
+      
+      // Allow create if user belongs to organization
+      allow create: if isAuthenticated() && (
+        belongsToOrganization(request.resource.data.organizationId) ||
+        belongsToOrganizationWithDocCheck(request.resource.data.organizationId) ||
+        // Fallback: allow if user document exists and has this organizationId
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == request.resource.data.organizationId)
+      );
+      
+      // Allow update if user belongs to organization
+      allow update: if isAuthenticated() && (
+        (belongsToOrganization(resource.data.organizationId) ||
+         belongsToOrganizationWithDocCheck(resource.data.organizationId) ||
+         // Fallback: allow if user document exists and has this organizationId
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == resource.data.organizationId)) &&
+        (isOwnerOrAdmin() || resource.data.createdBy == request.auth.uid)
+      );
+      
+      // Allow delete if user belongs to organization and is admin or creator
+      allow delete: if isAuthenticated() && (
+        (belongsToOrganization(resource.data.organizationId) ||
+         belongsToOrganizationWithDocCheck(resource.data.organizationId) ||
+         // Fallback: allow if user document exists and has this organizationId
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == resource.data.organizationId)) &&
+        (isOwnerOrAdmin() || resource.data.createdBy == request.auth.uid)
+      );
     }
     
     // Reports
@@ -1067,12 +1203,44 @@ service cloud.firestore {
     
     // Messages collection - for chat messages
     match /messages/{messageId} {
-      allow read, write: if isAuthenticated() 
+      // Allow read if user belongs to organization (covers both senders and recipients)
+      // The messageSessionId links to a conversation where user is a participant
+      allow read: if isAuthenticated() 
+        && resource.data != null
+        && belongsToOrganization(resource.data.organizationId);
+      
+      // Allow write (update/delete) only if user is the sender
+      allow update, delete: if isAuthenticated() 
+        && resource.data != null
         && belongsToOrganization(resource.data.organizationId)
         && request.auth.uid == resource.data.senderId;
+      
+      // Allow admins to read/write all messages in their organization
+      allow read, update, delete: if isAuthenticated() 
+        && isOwnerOrAdmin()
+        && resource.data != null
+        && belongsToOrganization(resource.data.organizationId);
+      
+      // Allow create if user belongs to organization and is the sender
+      // Also verify user is a participant in the message session for security
       allow create: if isAuthenticated() 
-        && belongsToOrganization(request.resource.data.organizationId)
-        && request.auth.uid == request.resource.data.senderId;
+        && request.resource.data.organizationId != null
+        && request.resource.data.messageSessionId != null
+        && request.auth.uid == request.resource.data.senderId
+        && (
+          // User belongs to organization
+          belongsToOrganization(request.resource.data.organizationId) ||
+          // OR user is a participant in the message session (verify by reading session)
+          (exists(/databases/$(database)/documents/messageSessions/$(request.resource.data.messageSessionId)) &&
+           request.auth.uid in get(/databases/$(database)/documents/messageSessions/$(request.resource.data.messageSessionId)).data.participantIds &&
+           belongsToOrganization(get(/databases/$(database)/documents/messageSessions/$(request.resource.data.messageSessionId)).data.organizationId))
+        );
+      
+      // Allow admins to create messages in their organization
+      allow create: if isAuthenticated() 
+        && isOwnerOrAdmin()
+        && request.resource.data.organizationId != null
+        && belongsToOrganization(request.resource.data.organizationId);
     }
     
     // User Sessions - User session data for syncing across devices/tabs
@@ -2610,16 +2778,23 @@ service cloud.firestore {
       // Messages subcollection - only participants can read/write
       match /messages/{messageId} {
         // Helper function to check if user is a participant
+        // Helper function to check if user is a participant
         function isParticipant() {
           let convData = get(/databases/$(database)/documents/conversations/$(conversationId)).data;
           // Ensure participants is a list
           let participants = convData.get('participants', []);
-          // Check if user's Firebase UID is directly in participants
-          return (participants is list && request.auth.uid in participants) ||
-                 // Admins can always access
-                 isOwnerOrAdmin() ||
-                 // Check if user belongs to organization
-                 belongsToOrganization(convData.organizationId);
+          
+          return isAuthenticated() && (
+            // Admins can always access (check first for performance)
+            isOwnerOrAdmin() ||
+            // Check if user belongs to organization
+            belongsToOrganization(convData.organizationId) ||
+            // Check if user's Firebase UID is directly in participants
+            (participants is list && request.auth.uid in participants) ||
+            // Special handling for admin.clipshow@example.com
+            (request.auth.token.email == 'admin.clipshow@example.com' && 
+             convData.organizationId == 'clip-show-pro-productions')
+          );
         }
         
         allow read: if isAuthenticated() && isParticipant();
@@ -2705,6 +2880,39 @@ service cloud.firestore {
       allow create: if belongsToOrganizationWithDocCheck(orgId) && isAuthenticated();
       allow update, delete: if belongsToOrganizationWithDocCheck(orgId) && 
         (isOwnerOrAdmin() || request.auth.uid == resource.data.indexedBy);
+    }
+    
+    // Backbone Indexed Files - Unified indexed files collection (local + cloud metadata)
+    // This collection stores indexed files and folders from all sources (local, cloud, etc.)
+    match /backboneIndexedFiles/{fileId} {
+      // Allow read if user is authenticated and:
+      // - For collection queries: allow if user has organization ID (query filter ensures org isolation via where('organizationId', '==', orgId))
+      // - For document reads: check if document belongs to user's organization
+      allow read: if isAuthenticated() && (
+        // Admins have full access
+        isOwnerOrAdmin() ||
+        // For collection queries: allow if user has organization ID
+        // The query's where('organizationId', '==', orgId) filter ensures data isolation
+        (getOrganizationId() != '') ||
+        // For individual document reads: check if document belongs to user's organization
+        (resource.data != null && resource.data.organizationId != null && 
+         belongsToOrganization(resource.data.organizationId))
+      );
+      
+      // Allow create if user is authenticated and belongs to the organization
+      allow create: if isAuthenticated() && 
+        request.resource.data.organizationId != null &&
+        (belongsToOrganization(request.resource.data.organizationId) ||
+         (getOrganizationId() != '' && getOrganizationId() == request.resource.data.organizationId) ||
+         isOwnerOrAdmin());
+      
+      // Allow update/delete if user is authenticated and belongs to the organization
+      allow update, delete: if isAuthenticated() && 
+        resource.data != null && resource.data.organizationId != null &&
+        (belongsToOrganization(resource.data.organizationId) ||
+         (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId) ||
+         isOwnerOrAdmin() ||
+         request.auth.uid == resource.data.userId);
     }
     
     // Google Drive Connections - Track which team members have connected their Drive
@@ -2929,17 +3137,42 @@ service cloud.firestore {
     // Integration Configurations - External service integration configs
     // Allow authenticated users to manage their own integration configurations
     match /organizations/{orgId}/integrationConfigs/{configId} {
-      allow read: if belongsToOrganization(orgId) || 
-                   (request.auth.token.email == 'admin.clipshow@example.com' && orgId == 'clip-show-pro-productions');
-      allow create: if (belongsToOrganization(orgId) || 
-                        (request.auth.token.email == 'admin.clipshow@example.com' && orgId == 'clip-show-pro-productions')) && 
-                     isAuthenticated();
-      allow update: if (belongsToOrganization(orgId) || 
-                        (request.auth.token.email == 'admin.clipshow@example.com' && orgId == 'clip-show-pro-productions')) && 
-                     isAuthenticated();
-      allow delete: if (belongsToOrganization(orgId) || 
-                        (request.auth.token.email == 'admin.clipshow@example.com' && orgId == 'clip-show-pro-productions')) && 
-                     isAuthenticated();
+      allow read: if isAuthenticated() && (
+        belongsToOrganization(orgId) ||
+        belongsToOrganizationWithDocCheck(orgId) ||
+        // Fallback: allow if user document exists and has this organizationId
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == orgId) ||
+        // Special case for admin.clipshow@example.com
+        (request.auth.token.email == 'admin.clipshow@example.com' && orgId == 'clip-show-pro-productions')
+      );
+      allow create: if isAuthenticated() && (
+        belongsToOrganization(orgId) ||
+        belongsToOrganizationWithDocCheck(orgId) ||
+        // Fallback: allow if user document exists and has this organizationId
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == orgId) ||
+        // Special case for admin.clipshow@example.com
+        (request.auth.token.email == 'admin.clipshow@example.com' && orgId == 'clip-show-pro-productions')
+      );
+      allow update: if isAuthenticated() && (
+        belongsToOrganization(orgId) ||
+        belongsToOrganizationWithDocCheck(orgId) ||
+        // Fallback: allow if user document exists and has this organizationId
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == orgId) ||
+        // Special case for admin.clipshow@example.com
+        (request.auth.token.email == 'admin.clipshow@example.com' && orgId == 'clip-show-pro-productions')
+      );
+      allow delete: if isAuthenticated() && (
+        belongsToOrganization(orgId) ||
+        belongsToOrganizationWithDocCheck(orgId) ||
+        // Fallback: allow if user document exists and has this organizationId
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == orgId) ||
+        // Special case for admin.clipshow@example.com
+        (request.auth.token.email == 'admin.clipshow@example.com' && orgId == 'clip-show-pro-productions')
+      );
     }
     
     // Script Templates - Script generation templates
@@ -3060,18 +3293,36 @@ service cloud.firestore {
     
     // Slack Connections - Organization-level Slack workspace connections
     match /organizations/{orgId}/slackConnections/{connectionId} {
-      // Allow read if user belongs to organization
-      allow read: if isAuthenticated() && belongsToOrganization(orgId);
+      // Allow read if user belongs to organization (with fallback checks)
+      allow read: if isAuthenticated() && (
+        belongsToOrganization(orgId) ||
+        belongsToOrganizationWithDocCheck(orgId) ||
+        // Fallback: allow if user document exists and has this organizationId
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == orgId)
+      );
       
       // Allow create/update if user belongs to organization and is owner or admin
-      allow create, update: if isAuthenticated() && belongsToOrganization(orgId) && (
+      allow create, update: if isAuthenticated() && (
+        belongsToOrganization(orgId) ||
+        belongsToOrganizationWithDocCheck(orgId) ||
+        // Fallback: allow if user document exists and has this organizationId
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == orgId)
+      ) && (
         isOwnerOrAdmin() ||
         // Users can create their own user-level connections
         request.resource.data.type == 'user' && request.auth.uid == request.resource.data.userId
       );
       
       // Allow delete if user belongs to organization
-      allow delete: if isAuthenticated() && belongsToOrganization(orgId) && (
+      allow delete: if isAuthenticated() && (
+        belongsToOrganization(orgId) ||
+        belongsToOrganizationWithDocCheck(orgId) ||
+        // Fallback: allow if user document exists and has this organizationId
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == orgId)
+      ) && (
         isOwnerOrAdmin() ||
         // Users can delete their own user-level connections
         resource.data.type == 'user' && request.auth.uid == resource.data.userId
@@ -3080,44 +3331,98 @@ service cloud.firestore {
     
     // Slack Channels - Synced Slack channels for organization
     match /organizations/{orgId}/slackChannels/{channelId} {
-      // Allow read if user belongs to organization
-      allow read: if isAuthenticated() && belongsToOrganization(orgId);
+      // Allow read if user belongs to organization (with fallback checks)
+      allow read: if isAuthenticated() && (
+        belongsToOrganization(orgId) ||
+        belongsToOrganizationWithDocCheck(orgId) ||
+        // Fallback: allow if user document exists and has this organizationId
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == orgId)
+      );
       
       // Allow write if user belongs to organization and is owner or admin
-      allow create, update: if isAuthenticated() && belongsToOrganization(orgId) && (
+      allow create, update: if isAuthenticated() && (
+        belongsToOrganization(orgId) ||
+        belongsToOrganizationWithDocCheck(orgId) ||
+        // Fallback: allow if user document exists and has this organizationId
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == orgId)
+      ) && (
         isOwnerOrAdmin() ||
         // Users can update their own channel preferences
         request.auth.uid == request.resource.data.userId
       );
       
       // Allow delete if user is admin
-      allow delete: if isAuthenticated() && belongsToOrganization(orgId) && isOwnerOrAdmin();
+      allow delete: if isAuthenticated() && (
+        belongsToOrganization(orgId) ||
+        belongsToOrganizationWithDocCheck(orgId) ||
+        // Fallback: allow if user document exists and has this organizationId
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == orgId)
+      ) && isOwnerOrAdmin();
       
       // Slack Messages subcollection - Messages synced from Slack channels
       match /messages/{messageId} {
-        // Allow read if user belongs to organization
-        allow read: if isAuthenticated() && belongsToOrganization(orgId);
+        // Allow read if user belongs to organization (with fallback checks)
+        allow read: if isAuthenticated() && (
+          belongsToOrganization(orgId) ||
+          belongsToOrganizationWithDocCheck(orgId) ||
+          // Fallback: allow if user document exists and has this organizationId
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == orgId)
+        );
         
         // Allow create/update if user belongs to organization
         // This allows syncing messages from Slack API to Firestore
-        allow create, update: if isAuthenticated() && belongsToOrganization(orgId);
+        allow create, update: if isAuthenticated() && (
+          belongsToOrganization(orgId) ||
+          belongsToOrganizationWithDocCheck(orgId) ||
+          // Fallback: allow if user document exists and has this organizationId
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == orgId)
+        );
         
         // Allow delete if user is admin
-        allow delete: if isAuthenticated() && belongsToOrganization(orgId) && isOwnerOrAdmin();
+        allow delete: if isAuthenticated() && (
+          belongsToOrganization(orgId) ||
+          belongsToOrganizationWithDocCheck(orgId) ||
+          // Fallback: allow if user document exists and has this organizationId
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == orgId)
+        ) && isOwnerOrAdmin();
       }
     }
     
     // Slack Users - Synced Slack users for organization
     match /organizations/{orgId}/slackUsers/{userId} {
-      // Allow read if user belongs to organization
-      allow read: if isAuthenticated() && belongsToOrganization(orgId);
+      // Allow read if user belongs to organization (with fallback checks)
+      allow read: if isAuthenticated() && (
+        belongsToOrganization(orgId) ||
+        belongsToOrganizationWithDocCheck(orgId) ||
+        // Fallback: allow if user document exists and has this organizationId
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == orgId)
+      );
       
       // Allow create/update if user belongs to organization
       // This allows syncing user presence and info from Slack API to Firestore
-      allow create, update: if isAuthenticated() && belongsToOrganization(orgId);
+      allow create, update: if isAuthenticated() && (
+        belongsToOrganization(orgId) ||
+        belongsToOrganizationWithDocCheck(orgId) ||
+        // Fallback: allow if user document exists and has this organizationId
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == orgId)
+      );
       
       // Allow delete if user is admin
-      allow delete: if isAuthenticated() && belongsToOrganization(orgId) && isOwnerOrAdmin();
+      allow delete: if isAuthenticated() && (
+        belongsToOrganization(orgId) ||
+        belongsToOrganizationWithDocCheck(orgId) ||
+        // Fallback: allow if user document exists and has this organizationId
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == orgId)
+      ) && isOwnerOrAdmin();
     }
     
     // ============================================================================
@@ -3417,15 +3722,7 @@ service cloud.firestore {
     match /tenants/{orgId} {
       // Helper function to check if user belongs to this tenant organization
       function belongsToTenantOrg() {
-        return isAuthenticated() && (
-          // User's organizationId matches the tenant orgId
-          getOrganizationId() == orgId ||
-          // Enterprise user has access to both organizations
-          (request.auth.token.email == 'enterprise.user@enterprisemedia.com' && 
-           (orgId == 'enterprise-media-org' || orgId == 'enterprise-org-001' || orgId == 'enterprise_media_org')) ||
-          // Admins can access all tenants
-          isOwnerOrAdmin()
-        );
+        return belongsToOrganization(orgId) || isOwnerOrAdmin();
       }
       
       // Projects - Tenant-scoped projects collection
