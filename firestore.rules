@@ -546,7 +546,12 @@ service cloud.firestore {
     // Projects - Project data
     match /projects/{projectId} {
       // Allow read for authenticated users (queries filter by organizationId and projectAccess)
-      allow read: if isAuthenticated();
+      allow read: if isAuthenticated() && (
+        // 🔧 CRITICAL FIX: Allow admin.clipshow@example.com full access
+        request.auth.token.email == 'admin.clipshow@example.com' ||
+        // Allow all authenticated users (queries filter by organizationId)
+        true
+      );
       allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
       allow update: if isAuthenticated() && 
                      resource.data != null &&
@@ -2505,6 +2510,8 @@ service cloud.firestore {
     // Clip Show Pro Contacts - Production contact management
     match /clipShowContacts/{contactId} {
       allow read: if isAuthenticated() && (
+        // 🔧 CRITICAL FIX: Allow admin.clipshow@example.com full access
+        request.auth.token.email == 'admin.clipshow@example.com' ||
         // Allow collection queries: if user has an organizationId in claims, allow reads
         // The query filter will ensure users only see documents for their organization
         (getOrganizationId() != '') ||
@@ -2576,8 +2583,23 @@ service cloud.firestore {
     
     // Projects collection - organization-scoped project metadata
     match /clipShowProjects/{projectId} {
-      // Allow read for authenticated users (queries filter by organizationId)
-      allow read: if isAuthenticated();
+      // Allow read if user belongs to organization OR has licensing access
+      // Handle case where document might not exist yet or organizationId might be missing
+      // For collection queries, allow if user has Clip Show Pro access (they'll be filtered by organizationId in query)
+      allow read: if isAuthenticated() && (
+        // 🔧 CRITICAL FIX: Allow admin.clipshow@example.com full access
+        request.auth.token.email == 'admin.clipshow@example.com' ||
+        // Allow collection queries: if user has Clip Show Pro access and organizationId, allow reads
+        // The query filter will ensure users only see documents for their organization
+        (hasClipShowProAccess() && getOrganizationId() != '') ||
+        // Allow individual document reads: check if document belongs to user's organization
+        (resource.data != null && resource.data.organizationId != null && belongsToOrganization(resource.data.organizationId)) ||
+        // OR check if user has licensing access for this document
+        (resource.data != null && resource.data.organizationId != null && canAccessLicensingData(resource.data.organizationId)) ||
+        // Allow reads for users with Clip Show Pro access even if document doesn't exist yet
+        // (needed for real-time subscriptions that may check permissions before document exists)
+        (resource.data == null && hasClipShowProAccess() && getOrganizationId() != '')
+      );
       allow create: if isAuthenticated() && (
         belongsToOrganization(request.resource.data.organizationId) ||
         canAccessLicensingData(request.resource.data.organizationId)
@@ -2591,8 +2613,23 @@ service cloud.firestore {
     
     // Folders collection - project organization structure (Clip Show Pro folders)
     match /clipShowFolders/{folderId} {
-      // Allow read for authenticated users (queries filter by organizationId)
-      allow read: if isAuthenticated();
+      // Allow read if user belongs to organization OR has licensing access
+      // Handle case where document might not exist yet or organizationId might be missing
+      // For collection queries, allow if user has Clip Show Pro access (they'll be filtered by organizationId in query)
+      allow read: if isAuthenticated() && (
+        // 🔧 CRITICAL FIX: Allow admin.clipshow@example.com full access
+        request.auth.token.email == 'admin.clipshow@example.com' ||
+        // Allow collection queries: if user has Clip Show Pro access and organizationId, allow reads
+        // The query filter will ensure users only see documents for their organization
+        (hasClipShowProAccess() && getOrganizationId() != '') ||
+        // Allow individual document reads: check if document belongs to user's organization
+        (resource.data != null && resource.data.organizationId != null && belongsToOrganization(resource.data.organizationId)) ||
+        // OR check if user has licensing access for this document
+        (resource.data != null && resource.data.organizationId != null && canAccessLicensingData(resource.data.organizationId)) ||
+        // Allow reads for users with Clip Show Pro access even if document doesn't exist yet
+        // (needed for real-time subscriptions that may check permissions before document exists)
+        (resource.data == null && hasClipShowProAccess() && getOrganizationId() != '')
+      );
       allow create: if isAuthenticated() && (
         belongsToOrganization(request.resource.data.organizationId) ||
         canModifyLicensingData(request.resource.data.organizationId)
@@ -3085,6 +3122,44 @@ service cloud.firestore {
           // Admin/Owner can delete any connection
           isOwnerOrAdmin()
         );
+    }
+    
+    // Webex Connections - OAuth connections for Webex integration
+    match /organizations/{orgId}/webexConnections/{connectionId} {
+      allow read: if belongsToOrganization(orgId);
+      allow create, update: if belongsToOrganization(orgId) && 
+        isAuthenticated() && (
+          // User can create/update their own user-level connection
+          (request.resource.data.type == 'user' && request.resource.data.userId == request.auth.uid) ||
+          // Admin/Owner can create/update organization-level connections
+          (request.resource.data.type == 'organization' && isOwnerOrAdmin())
+        );
+      allow delete: if belongsToOrganization(orgId) && 
+        isAuthenticated() && (
+          // User can delete their own connection
+          (resource.data.type == 'user' && resource.data.userId == request.auth.uid) ||
+          // User can delete connection they created
+          resource.data.connectedBy == request.auth.uid ||
+          // Admin/Owner can delete any connection
+          isOwnerOrAdmin()
+        );
+    }
+    
+    // Video Meetings - Video conferencing meetings (Google Meet, Webex)
+    match /organizations/{orgId}/videoMeetings/{meetingId} {
+      allow read: if belongsToOrganization(orgId);
+      allow create: if belongsToOrganization(orgId) && 
+        isAuthenticated() && 
+        request.resource.data.createdBy == request.auth.uid;
+      allow update: if belongsToOrganization(orgId) && 
+        isAuthenticated() && (
+          // User can update meetings they created
+          resource.data.createdBy == request.auth.uid ||
+          // Admin/Owner can update any meeting
+          isOwnerOrAdmin()
+        );
+      allow delete: if belongsToOrganization(orgId) && 
+        isAuthenticated() && isOwnerOrAdmin();
     }
     
     // ============================================================================
@@ -3959,6 +4034,160 @@ service cloud.firestore {
       }
     }
     
+    
+    // ============================================================================
+    // COLLECTION GROUP QUERY RULES
+    // ============================================================================
+    // These rules apply to collection group queries (queries across all subcollections with the same name)
+    // Required for Universal Search Service and relationship graph queries
+    
+    // Team Members - Collection group query support
+    match /{document=**}/teamMembers/{memberId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (
+        belongsToOrganization(request.resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+      allow update: if isAuthenticated() && (
+        (request.auth.uid == resource.data.userId && 
+         belongsToOrganization(resource.data.organizationId)) ||
+        (isOwnerOrAdmin() && belongsToOrganization(resource.data.organizationId))
+      );
+      allow delete: if isAuthenticated() && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin();
+    }
+    
+    // Timecards - Collection group query support
+    match /{document=**}/timecards/{timecardId} {
+      allow read: if isAuthenticated() && (
+        isOwner(resource.data.userId) ||
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
+      allow update: if isAuthenticated() && (
+        isOwner(resource.data.userId) ||
+        (belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin())
+      );
+      allow delete: if isAuthenticated() && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin();
+    }
+    
+    // Call Sheets - Collection group query support
+    match /{document=**}/callSheets/{callSheetId} {
+      allow read: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
+      allow update: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
+      allow delete: if isAuthenticated() && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin();
+    }
+    
+    // Clip Pitches - Collection group query support
+    match /{document=**}/clipPitches/{pitchId} {
+      allow read: if isAuthenticated() && (
+        hasClipShowProAccess() ||
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
+      allow update: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
+      allow delete: if isAuthenticated() && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin();
+    }
+    
+    // Production Stories - Collection group query support
+    match /{document=**}/productionStories/{storyId} {
+      allow read: if isAuthenticated() && (
+        hasClipShowProAccess() ||
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
+      allow update: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
+      allow delete: if isAuthenticated() && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin();
+    }
+    
+    // Cue Sheets - Collection group query support
+    match /{document=**}/cueSheets/{cueSheetId} {
+      allow read: if isAuthenticated() && (
+        hasCueSheetAccess() ||
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
+      allow update: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
+      allow delete: if isAuthenticated() && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin();
+    }
+    
+    // Budget Values - Collection group query support
+    match /{document=**}/budgetValues/{budgetId} {
+      allow read: if isAuthenticated() && (
+        hasCueSheetAccess() ||
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
+      allow update: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
+      allow delete: if isAuthenticated() && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin();
+    }
+    
+    // Project Sessions - Collection group query support
+    match /{document=**}/projectSessions/{sessionId} {
+      allow read: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
+      allow update: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
+      allow delete: if isAuthenticated() && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin();
+    }
+    
+    // License Agreements - Collection group query support
+    match /{document=**}/licenseAgreements/{agreementId} {
+      allow read: if isAuthenticated() && (
+        hasClipShowProAccess() ||
+        belongsToOrganization(resource.data.organizationId) ||
+        canAccessLicensingData(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
+      allow update: if isAuthenticated() && canModifyLicensingData(resource.data.organizationId);
+      allow delete: if isAuthenticated() && canModifyLicensingData(resource.data.organizationId) && isOwnerOrAdmin();
+    }
+    
+    // Inventory Assets - Collection group query support
+    match /{document=**}/inventory/{inventoryId} {
+      allow read: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
+      allow update: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
+      allow delete: if isAuthenticated() && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin();
+    }
+    
+    // Calendar Events (Backbone Pro) - Collection group query support
+    match /{document=**}/calendarEvents/{eventId} {
+      allow read: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
+      allow update: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
+      allow delete: if isAuthenticated() && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin();
+    }
+    
+    // Calendar Events (Clip Show Pro) - Collection group query support
+    match /{document=**}/clipShowCalendarEvents/{eventId} {
+      allow read: if isAuthenticated() && (
+        hasClipShowProAccess() ||
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
+      allow update: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
+      allow delete: if isAuthenticated() && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin();
+    }
+    
     // ============================================================================
     // CATCH-ALL RULE
     // ============================================================================
@@ -3967,5 +4196,6 @@ service cloud.firestore {
     match /{document=**} {
       allow read, write: if false;
     }
+
   }
 }
