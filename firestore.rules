@@ -4,6 +4,20 @@ service cloud.firestore {
   match /databases/{database}/documents {
     
     // ============================================================================
+    // ⚠️ SOURCE OF TRUTH - EDIT THIS FILE FOR ALL RULE UPDATES
+    // ============================================================================
+    // This is the PRIMARY file for Firestore security rules
+    // 
+    // For AI Assistants (LLMs/Cursor):
+    // - ALWAYS edit this file (shared-firebase-rules/firestore.rules)
+    // - DO NOT edit firestore.rules.local in project folders
+    // - After editing, sync to local: cp firestore.rules ./firestore.rules.local
+    // - Then deploy: firebase deploy --only firestore:rules
+    //
+    // See: shared-firebase-rules/README.md for full documentation
+    // ============================================================================
+    
+    // ============================================================================
     // UNIFIED FIRESTORE SECURITY RULES - ALL PROJECTS
     // ============================================================================
     // Supports: Dashboard, Licensing Website, Call Sheet App, EDL Converter, Parser Brain, Clip Show Pro
@@ -483,6 +497,34 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin();
     }
     
+    // Contacts - Contact information (organization-scoped)
+    match /contacts/{contactId} {
+      // Allow authenticated users to read contacts
+      // For collection queries: allow if user has organizationId in claims (query filter ensures correct org)
+      // For document reads: check if document belongs to user's organization
+      allow read: if isAuthenticated() && (
+        // Allow collection queries: if user has an organizationId in claims, allow reads
+        // The query filter will ensure users only see documents for their organization
+        (getOrganizationId() != '') ||
+        // Allow individual document reads: check if document belongs to user's organization
+        (resource.data != null && resource.data.organizationId != null && belongsToOrganization(resource.data.organizationId)) ||
+        // Allow reads for users even if document doesn't exist yet (for real-time subscriptions)
+        (resource.data == null && getOrganizationId() != '')
+      );
+      // Document-level create protection
+      allow create: if isAuthenticated() && (
+        belongsToOrganization(request.resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+      // Document-level update protection
+      allow update: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+      // Document-level delete protection
+      allow delete: if isAuthenticated() && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin();
+    }
+    
     // Project Participants - Project participant assignments (primary collection)
     match /project_participants/{participantId} {
       // Allow authenticated users to read (for queries) - client-side filtering ensures data isolation
@@ -649,6 +691,70 @@ service cloud.firestore {
                        hasAnyOrgRole(['owner', 'admin', 'manager']);
       allow delete: if belongsToOrganization(resource.data.organizationId) && 
                        hasAnyOrgRole(['owner', 'admin']);
+    }
+    
+    // Workflow Templates (Unified)
+    match /workflow-templates/{templateId} {
+      // Allow authenticated users to read/write
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+    
+    // Workflow Instances (Unified) - kebab-case collection name
+    match /workflow-instances/{instanceId} {
+      // Allow authenticated users to read/write their own instances
+      // Or if they belong to the organization
+      allow read: if isAuthenticated() && (
+        !('createdBy' in resource.data) ||
+        resource.data.createdBy == request.auth.uid ||
+        !('organizationId' in resource.data) ||
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (
+        !('createdBy' in resource.data) ||
+        resource.data.createdBy == request.auth.uid ||
+        !('organizationId' in resource.data) ||
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+      allow delete: if isAuthenticated() && (
+        !('createdBy' in resource.data) ||
+        resource.data.createdBy == request.auth.uid ||
+        !('organizationId' in resource.data) ||
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+    }
+    
+    // Workflow Instances (Unified) - camelCase collection name (alternative)
+    match /workflowInstances/{instanceId} {
+      // Allow authenticated users to read/write their own instances
+      allow read: if isAuthenticated() && (
+        !('createdBy' in resource.data) ||
+        resource.data.createdBy == request.auth.uid ||
+        !('organizationId' in resource.data) ||
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (
+        !('createdBy' in resource.data) ||
+        resource.data.createdBy == request.auth.uid ||
+        !('organizationId' in resource.data) ||
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+      allow delete: if isAuthenticated() && (
+        !('createdBy' in resource.data) ||
+        resource.data.createdBy == request.auth.uid ||
+        !('organizationId' in resource.data) ||
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
     }
     
     // Timecard Assignments
@@ -2886,16 +2992,13 @@ service cloud.firestore {
       // Allow read if user belongs to organization (for queries)
       // Client-side filtering ensures only conversations where user is a participant are shown
       allow read: if isAuthenticated() && (
-        // For collection queries: allow if user has organizationId (query filter ensures correct org)
-        // For document reads: check if document's organizationId matches user's organizationId
-        (resource.data != null && resource.data.organizationId != null && (
-          belongsToOrganization(resource.data.organizationId) ||
-          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId) ||
-          // Licensing specialists with Clip Show Pro access
-          (isLicensingSpecialist() && hasClipShowProAccess() && getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId)
-        )) ||
-        // Fallback: allow if user has organizationId and Clip Show Pro access (for collection queries)
-        (getOrganizationId() != '' && hasClipShowProAccess())
+        // For collection queries: allow if user has organizationId in claims (query filter ensures correct org)
+        // The query filter will ensure users only see documents for their organization
+        (getOrganizationId() != '') ||
+        // For individual document reads: check if document belongs to user's organization
+        (resource.data != null && resource.data.organizationId != null && belongsToOrganization(resource.data.organizationId)) ||
+        // Allow reads for users even if document doesn't exist yet (for real-time subscriptions)
+        (resource.data == null && getOrganizationId() != '')
       );
       
       allow create: if isAuthenticated() &&

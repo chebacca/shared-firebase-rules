@@ -1,0 +1,53 @@
+# 🔥 Firestore Rules - Cursor/LLM Guidelines
+
+## ⚠️ CRITICAL RULE: Always Edit Shared File First
+
+**When updating Firestore security rules, you MUST:**
+
+1. **Edit the shared file**: `shared-firebase-rules/firestore.rules`
+   - This is the SOURCE OF TRUTH
+   - All projects use this file
+   - Size: ~206KB, ~4290 lines
+
+2. **DO NOT edit**: `_backbone.Pro.Full-v1.0/firestore.rules.local`
+   - This file is auto-synced from shared file
+   - Changes will be overwritten during deployment
+
+3. **After editing shared file**, sync to local:
+   ```bash
+   cd "_backbone.Pro.Full-v1.0"
+   cp ../shared-firebase-rules/firestore.rules ./firestore.rules.local
+   ```
+
+4. **Then deploy**:
+   ```bash
+   firebase deploy --only firestore:rules --project backbone-logic
+   ```
+
+## 📁 File Structure
+
+```
+shared-firebase-rules/
+  └── firestore.rules          ← EDIT THIS (Source of Truth)
+
+_backbone.Pro.Full-v1.0/
+  └── firestore.rules.local    ← AUTO-SYNCED (Do not edit directly)
+```
+
+## 🎯 Common Collections
+
+When adding rules for new collections, add them to:
+- `shared-firebase-rules/firestore.rules` (around line 680+ for workflow collections)
+
+## ✅ Checklist Before Committing
+
+- [ ] Edited `shared-firebase-rules/firestore.rules` (not local file)
+- [ ] Synced to `firestore.rules.local` if testing locally
+- [ ] Deployed rules to Firebase
+- [ ] Verified rules work in production
+
+## 📚 See Also
+
+- `shared-firebase-rules/README.md` - Full documentation
+- `_backbone.Pro.Full-v1.0/ARCHITECTURE.md` - Project architecture
+
