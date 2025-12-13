@@ -670,38 +670,8 @@ service cloud.firestore {
     
     // Inventory Items
     match /inventoryItems/{itemId} {
-      // 🔧 FIX: Allow list operations for authenticated users (Parser Brain wrapper)
-      allow list: if isAuthenticated();
-      
-      // Allow read (get) if user belongs to organization or has project access
-      allow get: if isAuthenticated() && (
-        (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId) ||
-        belongsToOrganization(resource.data.organizationId) ||
-        belongsToOrganizationWithDocCheck(resource.data.organizationId) ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == resource.data.organizationId) ||
-        (resource.data.projectId != null && canAccessProject(resource.data.projectId)) ||
-        (!('organizationId' in resource.data) || resource.data.organizationId == '' || resource.data.organizationId == null)
-      );
-      
-      // Allow create if user belongs to organization
-      allow create: if isAuthenticated() && (
-        belongsToOrganization(request.resource.data.organizationId) ||
-        belongsToOrganizationWithDocCheck(request.resource.data.organizationId) ||
-        (getOrganizationId() != '' && getOrganizationId() == request.resource.data.organizationId) ||
-        (request.resource.data.projectId != null && canAccessProject(request.resource.data.projectId))
-      );
-      
-      // Allow update if user belongs to organization
-      allow update: if isAuthenticated() && (
-        belongsToOrganization(resource.data.organizationId) ||
-        belongsToOrganizationWithDocCheck(resource.data.organizationId) ||
-        (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId) ||
-        (resource.data.projectId != null && canModifyProject(resource.data.projectId))
-      );
-      
-      // Allow delete if user is admin
-      allow delete: if isAuthenticated() && isOwnerOrAdmin();
+      allow read: if canAccessProject(resource.data.projectId);
+      allow write: if canModifyProject(resource.data.projectId);
     }
     
     // Network IP Assignments - IP address assignments for inventory items
@@ -3758,6 +3728,7 @@ service cloud.firestore {
       );
     }
     
+    // Cue Sheets - Cue sheet documents with blockchain metadata support
     // Note: Supports blockchainMetadata field for document verification and immutability proof
     match /organizations/{orgId}/projects/{projectId}/cue-sheets/{cueSheetId} {
       // Allow read if user has Clip Show Pro access and belongs to organization
@@ -3794,61 +3765,6 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && (
         isOwnerOrAdmin() ||
         belongsToOrganization(orgId) ||
-        getOrganizationId() == 'standalone'
-      );
-    }
-
-    // ============================================================================
-    // COLLECTION GROUP QUERIES SUPPORT
-    // ============================================================================
-
-    // 🔧 FIX: Collection Group Query support for cue-sheets
-    // Required for Parser Brain's "Scan" functionality and cross-project views
-    match /{path=**}/cue-sheets/{cueSheetId} {
-      allow read: if isAuthenticated() && (
-        // Allow if user belongs to the organization specified in the document
-        (resource.data.organizationId != null && belongsToOrganization(resource.data.organizationId)) ||
-        // Allow if user belongs to the organization of the parent project (if available)
-        // Note: For collection group queries, we primarily rely on the data check above
-        
-        // Admin override
-        isOwnerOrAdmin() ||
-        
-        // Standalone user override
-        getOrganizationId() == 'standalone'
-      );
-    }
-
-    // 🔧 FIX: Collection Group Query support for timecards
-    // Required for Parser Brain and TimeCard wrappers to find timecards across projects
-    match /{path=**}/timecards/{timecardId} {
-      allow read: if isAuthenticated() && (
-        // Allow if user belongs to the organization specified in the document
-        (resource.data.organizationId != null && belongsToOrganization(resource.data.organizationId)) ||
-        // Check project access if projectId is present
-        (resource.data.projectId != null && canAccessProject(resource.data.projectId)) ||
-        // User's own timecards
-        (resource.data.userId == request.auth.uid) ||
-        // Admin override
-        isOwnerOrAdmin() ||
-        // Standalone user override
-        getOrganizationId() == 'standalone'
-      );
-    }
-    
-    // 🔧 FIX: Collection Group Query support for calendarEvents
-    // Required for Calendar wrappers to aggregate events
-    match /{path=**}/calendarEvents/{eventId} {
-      allow read: if isAuthenticated() && (
-        // Organization access
-        (resource.data.organizationId != null && belongsToOrganization(resource.data.organizationId)) ||
-        // Project access
-        (resource.data.projectId != null && canAccessProject(resource.data.projectId)) ||
-        // User's own events
-        (resource.data.createdBy == request.auth.uid) ||
-        // Admin override
-        isOwnerOrAdmin() ||
-        // Standalone user override
         getOrganizationId() == 'standalone'
       );
     }
