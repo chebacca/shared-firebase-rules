@@ -48,8 +48,10 @@ service cloud.firestore {
     // Check if user belongs to organization
     // ⚡️ OPTIMIZED: Relies strictly on Custom Claims
     function belongsToOrganization(organizationId) {
-      return getOrganizationId() == organizationId || 
-             organizationId in getUserClaims().get('allowedOrganizations', []);
+      // Handle null/undefined organizationId - Firestore rules don't support if statements
+      return (organizationId != null && organizationId != '') && 
+             (getOrganizationId() == organizationId || 
+              organizationId in getUserClaims().get('allowedOrganizations', []));
     }
     
     // Check if user belongs to organization by also checking Firestore user document
@@ -725,6 +727,82 @@ service cloud.firestore {
         !('createdBy' in resource.data) ||
         resource.data.createdBy == request.auth.uid ||
         !('organizationId' in resource.data) ||
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+    }
+
+    // ============================================================================
+    // UNIFIED WORKFLOW COLLECTIONS (CamelCase Support)
+    // ============================================================================
+
+    // Workflow Instances (camelCase)
+    match /workflowInstances/{instanceId} {
+      // 🔧 FIX: Allow queries that filter by organizationId matching user's org
+      allow read: if isAuthenticated() && (
+        // Primary check: organizationId matches user's organization (from custom claims)
+        (resource.data.organizationId != null && belongsToOrganization(resource.data.organizationId)) ||
+        // Admin override
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && (
+        belongsToOrganization(request.resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+      allow update: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+      allow delete: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+    }
+
+    // Workflow Steps
+    match /workflowSteps/{stepId} {
+      // 🔧 FIX: Allow queries that filter by organizationId matching user's org
+      // For collection queries, Firestore validates that all returned documents match the rule
+      allow read: if isAuthenticated() && (
+        // Primary check: organizationId matches user's organization (from custom claims)
+        (resource.data.organizationId != null && belongsToOrganization(resource.data.organizationId)) ||
+        // Fallback: Check session ownership/org if organizationId is missing on step
+        (resource.data.keys().hasAll(['sessionId']) &&
+         resource.data.sessionId != null &&
+         exists(/databases/$(database)/documents/sessions/$(resource.data.sessionId)) &&
+         belongsToOrganization(get(/databases/$(database)/documents/sessions/$(resource.data.sessionId)).data.organizationId)) ||
+        // Admin override
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && (
+        belongsToOrganization(request.resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+      allow update: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+      allow delete: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+    }
+
+    // Review Sessions
+    match /reviewSessions/{sessionId} {
+      allow read: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && (
+        belongsToOrganization(request.resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+      allow update: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+      allow delete: if isAuthenticated() && (
         belongsToOrganization(resource.data.organizationId) ||
         isOwnerOrAdmin()
       );
