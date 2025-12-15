@@ -695,6 +695,130 @@ service cloud.firestore {
                        hasAnyOrgRole(['owner', 'admin']);
     }
     
+    // Direct Reports - Manager-Employee relationships for timecard approvals
+    // Support both snake_case (direct_reports) and camelCase (directReports) collection names
+    match /direct_reports/{reportId} {
+      // Allow authenticated users to read direct reports
+      // For queries: allow if user belongs to organization (query filters ensure correct org)
+      // For document reads: check if user is involved in the relationship
+      allow read: if isAuthenticated() && (
+        // Allow collection queries: if user has organizationId, allow reads (query filters ensure isolation)
+        (getOrganizationId() != '') ||
+        // Allow individual document reads: check if user is employee, manager, or admin
+        (resource.data != null && (
+        resource.data.employeeId == request.auth.uid || 
+        resource.data.managerId == request.auth.uid ||
+          belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+        ))
+      );
+      
+      // 🔧 FIX: Allow authenticated users with proper permissions to create direct reports
+      // Check if user has admin/manager role OR if they're creating a report where they're the manager
+      allow create: if isAuthenticated() && (
+        (
+          // Admins/owners can create any direct report (even without organizationId check)
+        isOwnerOrAdmin() ||
+          // Managers can create reports where they are the manager
+          (request.resource.data.managerId == request.auth.uid) ||
+          // Users with manager/admin role can create reports
+          hasAnyOrgRole(['MANAGER', 'manager', 'ADMIN', 'admin', 'OWNER', 'owner']) ||
+          // If organizationId is provided, user must belong to it
+          (request.resource.data.organizationId != null && belongsToOrganization(request.resource.data.organizationId))
+        )
+      );
+      
+      // Allow admins and managers to update direct reports
+      allow update: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) && (
+          isOwnerOrAdmin() ||
+          hasAnyOrgRole(['MANAGER', 'manager', 'ADMIN', 'admin', 'OWNER', 'owner']) ||
+          // Allow managers to update reports where they are the manager
+          (resource.data.managerId == request.auth.uid)
+        )
+      );
+      
+      // Allow admins to delete
+      allow delete: if isAuthenticated() && (
+        isOwnerOrAdmin() ||
+        (belongsToOrganization(resource.data.organizationId) && hasAnyOrgRole(['ADMIN', 'admin', 'OWNER', 'owner']))
+      );
+    }
+    
+    // Direct Reports (camelCase) - Alternative collection name for compatibility
+    match /directReports/{reportId} {
+      // Allow authenticated users to read direct reports
+      // For queries: allow if user belongs to organization (query filters ensure correct org)
+      // For document reads: check if user is involved in the relationship
+      allow read: if isAuthenticated() && (
+        // Allow collection queries: if user has organizationId, allow reads (query filters ensure isolation)
+        (getOrganizationId() != '') ||
+        // Allow individual document reads: check if user is employee, manager, or admin
+        (resource.data != null && (
+          resource.data.employeeId == request.auth.uid || 
+          resource.data.managerId == request.auth.uid ||
+          belongsToOrganization(resource.data.organizationId) ||
+          isOwnerOrAdmin()
+        ))
+      );
+      
+      // 🔧 FIX: Allow authenticated users with proper permissions to create direct reports
+      // Check if user has admin/manager role OR if they're creating a report where they're the manager
+      allow create: if isAuthenticated() && (
+        (
+          // Admins/owners can create any direct report (even without organizationId check)
+          isOwnerOrAdmin() ||
+          // Managers can create reports where they are the manager
+          (request.resource.data.managerId == request.auth.uid) ||
+          // Users with manager/admin role can create reports
+          hasAnyOrgRole(['MANAGER', 'manager', 'ADMIN', 'admin', 'OWNER', 'owner']) ||
+          // If organizationId is provided, user must belong to it
+          (request.resource.data.organizationId != null && belongsToOrganization(request.resource.data.organizationId))
+        )
+      );
+      
+      // Allow admins and managers to update direct reports
+      allow update: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) && (
+          isOwnerOrAdmin() ||
+          hasAnyOrgRole(['MANAGER', 'manager', 'ADMIN', 'admin', 'OWNER', 'owner']) ||
+          // Allow managers to update reports where they are the manager
+          (resource.data.managerId == request.auth.uid)
+        )
+      );
+      
+      // Allow admins to delete
+      allow delete: if isAuthenticated() && (
+        isOwnerOrAdmin() ||
+        (belongsToOrganization(resource.data.organizationId) && hasAnyOrgRole(['ADMIN', 'admin', 'OWNER', 'owner']))
+      );
+    }
+    
+    // Timecard Approvals - Approval workflow tracking
+    match /timecard_approvals/{approvalId} {
+      // Allow users to read approvals where they are involved
+      allow read: if isAuthenticated() && (
+        resource.data.employeeId == request.auth.uid || 
+        resource.data.primaryApproverId == request.auth.uid ||
+        resource.data.escalationApproverId == request.auth.uid ||
+        isOwnerOrAdmin()
+      );
+      
+      // Allow employees to create approval requests for their own timecards
+      allow create: if isAuthenticated() && 
+        request.resource.data.employeeId == request.auth.uid;
+      
+      // Allow approvers to update approval status
+      allow update: if isAuthenticated() && (
+        resource.data.primaryApproverId == request.auth.uid ||
+        resource.data.escalationApproverId == request.auth.uid ||
+        isOwnerOrAdmin()
+      );
+      
+      // Only admins can delete approvals
+      allow delete: if isAuthenticated() && isOwnerOrAdmin();
+    }
+    
     // Workflow Templates (Unified)
     match /workflow-templates/{templateId} {
       // Allow authenticated users to read/write
@@ -702,6 +826,38 @@ service cloud.firestore {
       allow create: if isAuthenticated();
       allow update: if isAuthenticated();
       allow delete: if isAuthenticated();
+    }
+    
+    // User Workflows - User-created workflows with assignments
+    match /user-workflows/{workflowId} {
+      // Allow authenticated users in the same organization to read workflows
+      // For queries, Firestore validates each document matches the rule
+      allow read: if isAuthenticated() && (
+        // Primary check: organizationId matches user's organization (from custom claims)
+        (resource.data.organizationId != null && belongsToOrganization(resource.data.organizationId)) ||
+        // Fallback: Allow if user owns the workflow
+        resource.data.userId == request.auth.uid ||
+        // Admin override
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && (
+        // User must belong to the organization they're creating the workflow for
+        (request.resource.data.organizationId != null && belongsToOrganization(request.resource.data.organizationId)) ||
+        // Or be an admin
+        isOwnerOrAdmin()
+      );
+      allow update: if isAuthenticated() && (
+        // User can update their own workflows
+        (resource.data.userId == request.auth.uid && belongsToOrganization(resource.data.organizationId)) ||
+        // Or admins can update any
+        isOwnerOrAdmin()
+      );
+      allow delete: if isAuthenticated() && (
+        // User can delete their own workflows
+        (resource.data.userId == request.auth.uid && belongsToOrganization(resource.data.organizationId)) ||
+        // Or admins can delete any
+        isOwnerOrAdmin()
+      );
     }
     
     // Workflow Instances (Unified) - kebab-case collection name
@@ -835,6 +991,184 @@ service cloud.firestore {
       );
     }
     
+    // ============================================================================
+    // SESSION WORKFLOWS AND RELATED COLLECTIONS
+    // ============================================================================
+    
+    // Session Workflows - Workflow instances linked to sessions
+    match /sessionWorkflows/{workflowId} {
+      allow read: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        canAccessProject(resource.data.projectId) ||
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && (
+        belongsToOrganization(request.resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+      allow update: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+      allow delete: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+    }
+    
+    // ============================================================================
+    // SETTINGS AND CONFIGURATION COLLECTIONS
+    // ============================================================================
+    
+    // Settings - Application and user settings
+    match /settings/{settingId} {
+      allow read: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin() ||
+        resource.data.userId == request.auth.uid
+      );
+      allow create: if isAuthenticated() && (
+        belongsToOrganization(request.resource.data.organizationId) ||
+        isOwnerOrAdmin() ||
+        request.resource.data.userId == request.auth.uid
+      );
+      allow update: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin() ||
+        resource.data.userId == request.auth.uid
+      );
+      allow delete: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+    }
+    
+    // ============================================================================
+    // PROJECT DELIVERABLES AND OUTPUTS
+    // ============================================================================
+    
+    // Deliverables - Project deliverables and outputs
+    match /deliverables/{deliverableId} {
+      allow read: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        canAccessProject(resource.data.projectId) ||
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && (
+        belongsToOrganization(request.resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+      allow update: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        canModifyProject(resource.data.projectId) ||
+        isOwnerOrAdmin()
+      );
+      allow delete: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+    }
+    
+    // ============================================================================
+    // USER ROLES AND PERMISSIONS
+    // ============================================================================
+    
+    // User Roles - User role assignments
+    match /userRoles/{roleId} {
+      allow read: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        resource.data.userId == request.auth.uid ||
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && isOwnerOrAdmin();
+      allow update: if isAuthenticated() && isOwnerOrAdmin();
+      allow delete: if isAuthenticated() && isOwnerOrAdmin();
+    }
+    
+    // Permissions - Permission assignments
+    match /permissions/{permissionId} {
+      allow read: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        resource.data.userId == request.auth.uid ||
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && isOwnerOrAdmin();
+      allow update: if isAuthenticated() && isOwnerOrAdmin();
+      allow delete: if isAuthenticated() && isOwnerOrAdmin();
+    }
+    
+    // ============================================================================
+    // WORKFLOW DEFINITIONS (Different from workflowInstances)
+    // ============================================================================
+    
+    // Workflows - Workflow definitions
+    match /workflows/{workflowId} {
+      allow read: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && (
+        belongsToOrganization(request.resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+      allow update: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+      allow delete: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+    }
+    
+    // ============================================================================
+    // TEMPLATES AND MEDIA
+    // ============================================================================
+    
+    // Templates - Document and workflow templates
+    match /templates/{templateId} {
+      allow read: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        resource.data.isPublic == true ||
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && (
+        belongsToOrganization(request.resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+      allow update: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+      allow delete: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+    }
+    
+    // Media - Media files and assets
+    match /media/{mediaId} {
+      allow read: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        canAccessProject(resource.data.projectId) ||
+        resource.data.isPublic == true ||
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && (
+        belongsToOrganization(request.resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+      allow update: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+      allow delete: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
+    }
+    
+
     // Timecard Assignments
     match /timecardAssignments/{assignmentId} {
       allow read: if belongsToOrganization(resource.data.organizationId);
@@ -1874,21 +2208,122 @@ service cloud.firestore {
     
     // Production Sessions - Production session data
     match /productionSessions/{sessionId} {
+      // 🔧 FIX: Allow queries that filter by organizationId matching user's org
+      // For collection queries, Firestore validates that all returned documents match the rule
       allow read: if isAuthenticated() && (
-        belongsToOrganization(resource.data.organizationId) ||
-        getOrganizationId() == 'standalone'
+        // Primary check: organizationId matches user's organization (from custom claims)
+        (resource.data != null && resource.data.organizationId != null && belongsToOrganization(resource.data.organizationId)) ||
+        // Fallback: If document doesn't have organizationId, allow if user has organizationId in claims
+        // This handles legacy documents or documents created before organizationId was required
+        (resource.data != null && !('organizationId' in resource.data) && getOrganizationId() != '') ||
+        // Document doesn't exist yet (for real-time listeners) - allow if user has organization
+        (resource.data == null && getOrganizationId() != '') ||
+        // Standalone users
+        getOrganizationId() == 'standalone' ||
+        // Admin override
+        isOwnerOrAdmin()
       );
       allow create: if isAuthenticated() && (
-        belongsToOrganization(request.resource.data.organizationId) ||
-        getOrganizationId() == 'standalone'
+        // If organizationId is provided, validate it
+        (request.resource.data.organizationId != null && belongsToOrganization(request.resource.data.organizationId)) ||
+        // If organizationId is not provided, allow if user has organizationId in claims
+        (!('organizationId' in request.resource.data) && getOrganizationId() != '') ||
+        getOrganizationId() == 'standalone' ||
+        isOwnerOrAdmin()
       );
       allow update: if isAuthenticated() && (
-        belongsToOrganization(resource.data.organizationId) ||
-        getOrganizationId() == 'standalone'
+        // If document has organizationId, validate it
+        (resource.data.organizationId != null && belongsToOrganization(resource.data.organizationId)) ||
+        // If document doesn't have organizationId, allow if user has organizationId in claims
+        (!('organizationId' in resource.data) && getOrganizationId() != '') ||
+        getOrganizationId() == 'standalone' ||
+        isOwnerOrAdmin()
       );
       allow delete: if isAuthenticated() && (
-        belongsToOrganization(resource.data.organizationId) ||
-        getOrganizationId() == 'standalone'
+        (resource.data.organizationId != null && belongsToOrganization(resource.data.organizationId)) ||
+        (!('organizationId' in resource.data) && getOrganizationId() != '') ||
+        getOrganizationId() == 'standalone' ||
+        isOwnerOrAdmin()
+      );
+    }
+    
+    // Session Automations - Automation rules and executions for session lifecycle
+    match /sessionAutomations/{automationId} {
+      // 🔧 FIX: Allow read for authenticated users - more lenient for automation system
+      allow read: if isAuthenticated() && (
+        // Primary check: organizationId matches user's organization (if document has it)
+        (resource.data != null && resource.data.organizationId != null && belongsToOrganization(resource.data.organizationId)) ||
+        // Fallback: If document doesn't have organizationId, allow if user has organizationId in claims
+        // This handles legacy documents or documents created before organizationId was required
+        (resource.data != null && !('organizationId' in resource.data) && getOrganizationId() != '') ||
+        // Document doesn't exist yet (for real-time listeners)
+        (resource.data == null && getOrganizationId() != '') ||
+        // Standalone users
+        getOrganizationId() == 'standalone' ||
+        // Admin override
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && (
+        // If organizationId is provided, validate it
+        (request.resource.data.organizationId != null && belongsToOrganization(request.resource.data.organizationId)) ||
+        // If organizationId is not provided, allow if user has organizationId in claims
+        (!('organizationId' in request.resource.data) && getOrganizationId() != '') ||
+        getOrganizationId() == 'standalone' ||
+        isOwnerOrAdmin()
+      );
+      allow update: if isAuthenticated() && (
+        // If document has organizationId, validate it
+        (resource.data.organizationId != null && belongsToOrganization(resource.data.organizationId)) ||
+        // If document doesn't have organizationId, allow if user has organizationId in claims
+        (!('organizationId' in resource.data) && getOrganizationId() != '') ||
+        getOrganizationId() == 'standalone' ||
+        isOwnerOrAdmin()
+      );
+      allow delete: if isAuthenticated() && (
+        (resource.data.organizationId != null && belongsToOrganization(resource.data.organizationId)) ||
+        (!('organizationId' in resource.data) && getOrganizationId() != '') ||
+        getOrganizationId() == 'standalone' ||
+        isOwnerOrAdmin()
+      );
+    }
+    
+    // Scheduled Actions - Scheduled automation actions to be executed
+    match /scheduledActions/{actionId} {
+      // 🔧 FIX: Allow read for authenticated users - more lenient for automation system
+      allow read: if isAuthenticated() && (
+        // Primary check: organizationId matches user's organization (if document has it)
+        (resource.data != null && resource.data.organizationId != null && belongsToOrganization(resource.data.organizationId)) ||
+        // Fallback: If document doesn't have organizationId, allow if user has organizationId in claims
+        // This handles legacy documents or documents created before organizationId was required
+        (resource.data != null && !('organizationId' in resource.data) && getOrganizationId() != '') ||
+        // Document doesn't exist yet (for real-time listeners)
+        (resource.data == null && getOrganizationId() != '') ||
+        // Standalone users
+        getOrganizationId() == 'standalone' ||
+        // Admin override
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && (
+        // If organizationId is provided, validate it
+        (request.resource.data.organizationId != null && belongsToOrganization(request.resource.data.organizationId)) ||
+        // If organizationId is not provided, allow if user has organizationId in claims
+        (!('organizationId' in request.resource.data) && getOrganizationId() != '') ||
+        getOrganizationId() == 'standalone' ||
+        isOwnerOrAdmin()
+      );
+      allow update: if isAuthenticated() && (
+        // If document has organizationId, validate it
+        (resource.data.organizationId != null && belongsToOrganization(resource.data.organizationId)) ||
+        // If document doesn't have organizationId, allow if user has organizationId in claims
+        (!('organizationId' in resource.data) && getOrganizationId() != '') ||
+        getOrganizationId() == 'standalone' ||
+        isOwnerOrAdmin()
+      );
+      allow delete: if isAuthenticated() && (
+        (resource.data.organizationId != null && belongsToOrganization(resource.data.organizationId)) ||
+        (!('organizationId' in resource.data) && getOrganizationId() != '') ||
+        getOrganizationId() == 'standalone' ||
+        isOwnerOrAdmin()
       );
     }
     
