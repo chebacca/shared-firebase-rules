@@ -2767,16 +2767,8 @@ service cloud.firestore {
 
     // savedContainers Collection
     match /savedContainers/{docId} {
-      // Allow list queries for authenticated users in their organization
-      allow list: if isAuthenticated() && (
-        isOwnerOrAdmin() || 
-        request.query.limit <= 100
-      );
-      // Allow get for specific documents
-      allow get: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      // Allow create with organization check
+      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
       allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      // Allow update/delete with organization check
       allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
       
       // Inventory Items subcollection - inherits permissions from parent container
@@ -3919,44 +3911,4 @@ service cloud.firestore {
       allow read, write: if false;
     }
   }
-
-    // ============================================================================
-    // AUTO-GENERATED RULES FOR MISSING COLLECTIONS
-    // ============================================================================
-
-    // ============================================================================
-    // AIRTABLESYNCSTATUS
-    // ============================================================================
-    // Organization-scoped collection
-    // ============================================================================
-    
-    match /airtableSyncStatus/{docId} {
-      // Allow read/write for authenticated users in the same organization
-      allow read, write: if isAuthenticated() && 
-                            belongsToOrganizationWithDocCheck(resource.data.organizationId);
-    }
-
-    // ============================================================================
-    // OAUTHSTATES
-    // ============================================================================
-    // Organization-scoped collection
-    // ============================================================================
-    
-    match /oauthStates/{docId} {
-      // Allow read/write for authenticated users in the same organization
-      allow read, write: if isAuthenticated() && 
-                            belongsToOrganizationWithDocCheck(resource.data.organizationId);
-    }
-
-    // ============================================================================
-    // PRODUCTIONSTORIES
-    // ============================================================================
-    // Organization-scoped collection
-    // ============================================================================
-    
-    match /productionStories/{docId} {
-      // Allow read/write for authenticated users in the same organization
-      allow read, write: if isAuthenticated() && 
-                            belongsToOrganizationWithDocCheck(resource.data.organizationId);
-    }
 }
