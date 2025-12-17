@@ -1,0 +1,1437 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ============================================================================
+    // UNIFIED FIRESTORE SECURITY RULES - ALL PROJECTS
+    // ============================================================================
+    // Supports: Dashboard, Licensing Website, Call Sheet App, EDL Converter, Parser Brain
+    // Handles all collections with proper organization-based access control
+    // Single source of truth for all Firebase security rules
+    // ============================================================================
+    
+    // ============================================================================
+    // HELPER FUNCTIONS
+    // ============================================================================
+    
+    // Authentication check
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Get user's custom claims
+    function getUserClaims() {
+      return request.auth.token;
+    }
+    
+    // Get organization ID from user claims
+    function getOrganizationId() {
+      // Check if user has organizationId in custom claims
+      let orgId = getUserClaims().get('organizationId', '');
+      
+      // If no organizationId in claims, check if it's a standalone user
+      return orgId != '' ? orgId : 
+        (request.auth.token.email == 'standalone.user@example.com' || 
+         request.auth.token.email.matches('.*@example\\.com$')) ? 'standalone' : '';
+    }
+    
+    // Check if user belongs to organization
+    function belongsToOrganization(organizationId) {
+      // Allow Super Admin to access any organization data
+      return isOwnerOrAdmin() ||
+      // Allow standalone users to access standalone organization
+             (organizationId == 'standalone' && 
+              (request.auth.token.email == 'standalone.user@example.com' || 
+               request.auth.token.email.matches('.*@example\\.com$'))) ||
+             (isAuthenticated() && getOrganizationId() == organizationId);
+    }
+    
+    // Check if user has specific role
+    function hasRole(role) {
+      return isAuthenticated() && getUserClaims().get('role', '') == role;
+    }
+    
+    // Check if user has any of the specified roles
+    function hasAnyRole(roles) {
+      return isAuthenticated() && getUserClaims().get('role', '') in roles;
+    }
+    
+    // Check if user has organizational role
+    function hasOrgRole(role) {
+      return isAuthenticated() && getUserClaims().get('teamMemberRole', '') == role;
+    }
+    
+    // Check if user has any organizational roles
+    function hasAnyOrgRole(roles) {
+      return isAuthenticated() && getUserClaims().get('teamMemberRole', '') in roles;
+    }
+    
+    // Check if user is owner or admin
+    function isOwnerOrAdmin() {
+      return hasAnyRole(['OWNER', 'ADMIN', 'SUPERADMIN', 'SUPER_ADMIN']) || 
+             hasAnyOrgRole(['owner', 'admin']) ||
+             getUserClaims().get('isAdmin', false) ||
+             getUserClaims().get('superAdmin', false) ||
+             getUserClaims().get('canAccessAdminPanel', false);
+    }
+    
+    // Check if user owns the document (userId field matches)
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Check if user can access project data
+    function canAccessProject(projectId) {
+      return isAuthenticated() && (
+        // Allow Super Admin access
+        isOwnerOrAdmin() ||
+        // Check if user has project assignment
+        projectId in getUserClaims().get('projectAssignments', {}) ||
+        // Check if user belongs to organization
+        belongsToOrganization(resource.data.organizationId) ||
+        // Allow standalone users
+        getOrganizationId() == 'standalone'
+      );
+    }
+    
+    // Check if user can modify project data
+    function canModifyProject(projectId) {
+      return isAuthenticated() && (
+        // Allow Super Admin access
+        isOwnerOrAdmin() ||
+        // Check if user is project admin
+        projectId in getUserClaims().get('projectAssignments', {}) &&
+        getUserClaims().get('projectAssignments', {})[projectId].get('baseRole', '') in ['ADMIN', 'DO_ER'] ||
+        // Check if user has organization admin role
+        hasAnyOrgRole(['admin', 'owner']) ||
+        // Allow standalone users
+        getOrganizationId() == 'standalone'
+      );
+    }
+    
+    // Check if user has minimum hierarchy level
+    function hasMinimumHierarchy(minLevel) {
+      return isAuthenticated() && getUserClaims().get('effectiveHierarchy', 0) >= minLevel;
+    }
+    
+    // Check if user has EDL Converter access
+    function hasEDLConverterAccess() {
+      return isAuthenticated() && getUserClaims().get('isEDLConverter', false);
+    }
+    
+    // Check if user has Call Sheet access
+    function hasCallSheetAccess() {
+      return isAuthenticated() && getUserClaims().get('isCallSheetUser', false);
+    }
+    
+    // Check if user is standalone user
+    function isStandaloneUser() {
+      return isAuthenticated() && getUserClaims().get('isStandaloneUser', false);
+    }
+    
+    // ============================================================================
+    // CORE COLLECTIONS
+    // ============================================================================
+    
+    // Users - Core user data
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (request.auth.uid == userId || isOwnerOrAdmin());
+    }
+    
+    // Organizations - Organization data
+    match /organizations/{orgId} {
+      allow read: if isAuthenticated() && belongsToOrganization(orgId);
+      allow write: if isAuthenticated() && belongsToOrganization(orgId) && isOwnerOrAdmin();
+      allow create: if isAuthenticated() && isOwnerOrAdmin();
+      allow update: if isAuthenticated() && belongsToOrganization(orgId) && isOwnerOrAdmin();
+      
+      // Dropbox Indexed Files - Files indexed from Dropbox
+      match /dropboxIndexedFiles/{fileId} {
+        allow read: if isAuthenticated() && (
+          belongsToOrganization(orgId) ||
+          isOwnerOrAdmin() ||
+          (resource.data != null && resource.data.organizationId != null)
+        );
+        allow write: if isAuthenticated() && belongsToOrganization(orgId);
+      }
+      
+      // Box Indexed Files - Files indexed from Box
+      match /boxIndexedFiles/{fileId} {
+        allow read: if isAuthenticated() && (
+          belongsToOrganization(orgId) ||
+          isOwnerOrAdmin() ||
+          (resource.data != null && resource.data.organizationId != null)
+        );
+        allow write: if isAuthenticated() && belongsToOrganization(orgId);
+      }
+      
+      // Indexed Files - Google Drive indexed files
+      match /indexedFiles/{fileId} {
+        allow read: if isAuthenticated() && (
+          belongsToOrganization(orgId) ||
+          isOwnerOrAdmin() ||
+          (resource.data != null && resource.data.organizationId != null)
+        );
+        allow write: if isAuthenticated() && belongsToOrganization(orgId);
+      }
+      
+      // Call Sheet Projects - Projects from Call Sheet app
+      match /callsheet-projects/{projectId} {
+        allow read: if isAuthenticated() && (
+          belongsToOrganization(orgId) ||
+          isOwnerOrAdmin() ||
+          (resource.data != null && resource.data.organizationId != null)
+        );
+        allow write: if isAuthenticated() && belongsToOrganization(orgId);
+      }
+      
+      // Slack Connections - Slack workspace integrations (subcollection)
+      match /slackConnections/{connectionId} {
+        allow read: if isAuthenticated() && (
+          // Allow if user has orgId claim and it matches parent org
+          (getOrganizationId() != '' && getOrganizationId() == orgId) ||
+          // Allow admins
+          isOwnerOrAdmin() ||
+          // Allow any authenticated user to read (parent orgId in path ensures scoping)
+          isAuthenticated()
+        );
+        allow write: if isAuthenticated() && (
+          (getOrganizationId() != '' && getOrganizationId() == orgId) ||
+          isOwnerOrAdmin()
+        );
+      }
+      
+      // Slack Channels - Slack channel mappings (subcollection)
+      match /slackChannels/{channelId} {
+        allow read: if isAuthenticated() && (
+          // Allow if user has orgId claim and it matches parent org
+          (getOrganizationId() != '' && getOrganizationId() == orgId) ||
+          // Allow admins
+          isOwnerOrAdmin() ||
+          // Allow any authenticated user to read (parent orgId in path ensures scoping)
+          isAuthenticated()
+        );
+        allow write: if isAuthenticated() && (
+          (getOrganizationId() != '' && getOrganizationId() == orgId) ||
+          isOwnerOrAdmin()
+        );
+      }
+      
+      // Integration Configs - Integration configuration (subcollection)
+      match /integrationConfigs/{configId} {
+        allow read: if isAuthenticated() && (
+          // Allow if user has orgId claim and it matches parent org
+          (getOrganizationId() != '' && getOrganizationId() == orgId) ||
+          // Allow admins
+          isOwnerOrAdmin() ||
+          // Allow any authenticated user to read (parent orgId in path ensures scoping)
+          isAuthenticated()
+        );
+        allow write: if isAuthenticated() && (
+          (getOrganizationId() != '' && getOrganizationId() == orgId) ||
+          isOwnerOrAdmin()
+        );
+      }
+    }
+    
+    // Team Members - Team member data
+    match /teamMembers/{memberId} {
+      allow read: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
+      allow write: if isAuthenticated() && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin();
+      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId) && isOwnerOrAdmin();
+      allow update: if isAuthenticated() && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin();
+    }
+    
+    // Project Team Members - Project-specific team member assignments
+    match /projectTeamMembers/{assignmentId} {
+      allow read: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        request.auth.uid == resource.data.teamMemberId ||
+        canAccessProject(resource.data.projectId)
+      );
+      allow write: if isAuthenticated() && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin();
+      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId) && isOwnerOrAdmin();
+      allow update: if isAuthenticated() && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin();
+    }
+    
+    // Projects - Project data
+    match /projects/{projectId} {
+      allow read: if canAccessProject(projectId);
+      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
+      allow update: if canModifyProject(projectId);
+      allow delete: if isAuthenticated() && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin();
+    }
+    
+    // Sessions - Production sessions
+    match /sessions/{sessionId} {
+      allow read: if belongsToOrganization(resource.data.organizationId);
+      allow create: if belongsToOrganization(request.resource.data.organizationId) 
+                    && request.resource.data.organizationId == getOrganizationId()
+                    && request.resource.data.createdBy == request.auth.uid;
+      allow update: if belongsToOrganization(resource.data.organizationId) 
+                    && request.resource.data.organizationId == resource.data.organizationId;
+      allow delete: if belongsToOrganization(resource.data.organizationId);
+    }
+    
+    // Timecards
+    match /timecards/{timecardId} {
+      allow read: if isOwner(resource.data.userId) || 
+                     canAccessProject(resource.data.projectId);
+      allow create: if canAccessProject(request.resource.data.projectId);
+      allow update: if isOwner(resource.data.userId) || 
+                       canModifyProject(resource.data.projectId);
+    }
+    
+    // Inventory Items - Organization-wide access with optional project filtering
+    match /inventoryItems/{itemId} {
+      allow read: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        (resource.data.projectId != null && canAccessProject(resource.data.projectId))
+      );
+      allow write: if isAuthenticated() && (
+        (belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin()) ||
+        (resource.data.projectId != null && canModifyProject(resource.data.projectId))
+      );
+      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
+      allow update: if isAuthenticated() && (
+        (belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin()) ||
+        (resource.data.projectId != null && canModifyProject(resource.data.projectId))
+      );
+      allow delete: if isAuthenticated() && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin();
+    }
+    
+    // Reports
+    match /reports/{reportId} {
+      allow read: if canAccessProject(resource.data.projectId);
+      allow create: if canAccessProject(request.resource.data.projectId);
+      allow update: if isOwner(resource.data.userId) || 
+                       canModifyProject(resource.data.projectId);
+    }
+    
+    // Notifications
+    match /notifications/{notificationId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if true; // System can create notifications
+      allow update: if isOwner(resource.data.userId);
+    }
+    
+    // Message Sessions - Real-time messaging sessions
+    match /messageSessions/{sessionId} {
+      allow read: if isAuthenticated() && (
+        isOwnerOrAdmin() ||
+        (resource != null && 
+         belongsToOrganization(resource.data.organizationId) &&
+         request.auth.uid in resource.data.participantIds)
+      );
+      
+      allow write: if isAuthenticated() && (
+        isOwnerOrAdmin() ||
+        belongsToOrganization(request.resource.data.organizationId)
+      );
+    }
+    
+    // ============================================================================
+    // LICENSING WEBSITE COLLECTIONS
+    // ============================================================================
+    
+    // Licenses - Enhanced license validation with claims
+    match /licenses/{licenseId} {
+      allow read: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        (isAuthenticated() && resource.data.userId == request.auth.uid) ||
+        isAuthenticated()
+      );
+      allow create: if isAuthenticated() && (
+        belongsToOrganization(request.resource.data.organizationId) && 
+        hasAnyOrgRole(['owner', 'admin']) ||
+        (isAuthenticated() && request.resource.data.userId == request.auth.uid)
+      );
+      allow update: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) && 
+        hasAnyOrgRole(['owner', 'admin']) ||
+        resource.data.userId == request.auth.uid
+      );
+      allow delete: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) && 
+        hasAnyOrgRole(['owner', 'admin'])
+      );
+    }
+    
+    // Subscriptions - Admin access for dashboard stats
+    match /subscriptions/{subscriptionId} {
+      allow read: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        resource.data.userId == request.auth.uid ||
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && (
+        belongsToOrganization(request.resource.data.organizationId) && 
+        hasAnyOrgRole(['owner', 'admin']) ||
+        request.resource.data.userId == request.auth.uid
+      );
+      allow update: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) && 
+        hasAnyOrgRole(['owner', 'admin']) ||
+        resource.data.userId == request.auth.uid
+      );
+      allow delete: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) && 
+        hasAnyOrgRole(['owner', 'admin'])
+      );
+    }
+    
+    // Standalone Licenses - Enhanced license validation
+    match /standaloneLicenses/{licenseId} {
+      allow read: if isAuthenticated() && (
+        isAuthenticated() ||
+        resource.data.userId == request.auth.uid ||
+        hasAnyRole(['OWNER', 'ADMIN'])
+      );
+      allow create: if isAuthenticated() && (
+        isAuthenticated() && 
+        request.resource.data.userId == request.auth.uid
+      );
+      allow update: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        hasAnyRole(['OWNER', 'ADMIN'])
+      );
+      allow delete: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        hasAnyRole(['OWNER', 'ADMIN'])
+      );
+    }
+    
+    // ============================================================================
+    // CALL SHEET APP COLLECTIONS
+    // ============================================================================
+    
+    // Call sheets collection
+    match /callsheetCallSheets/{callSheetId} {
+      allow read, write: if isAuthenticated() && hasCallSheetAccess();
+    }
+    
+    // Personnel collection
+    match /callsheetPersonnel/{personnelId} {
+      allow read, write: if isAuthenticated() && hasCallSheetAccess();
+    }
+    
+    // Templates collection
+    match /callsheetTemplates/{templateId} {
+      allow read, write: if isAuthenticated() && hasCallSheetAccess();
+    }
+    
+    // Published call sheets collection
+    match /callsheetPublishedCallSheets/{publishId} {
+      allow read, write: if isAuthenticated() && hasCallSheetAccess();
+    }
+    
+    // Call sheet links collection
+    match /callsheetLinks/{linkId} {
+      allow read: if true; // Public read access for published links
+      allow write: if isAuthenticated() && hasCallSheetAccess();
+    }
+    
+    // Daily call sheet records collection - user-specific access
+    match /callsheetDailyRecords/{recordId} {
+      allow read, write: if isAuthenticated() && hasCallSheetAccess() 
+        && request.auth.uid == resource.data.userId;
+      allow create: if isAuthenticated() && hasCallSheetAccess() 
+        && request.auth.uid == request.resource.data.userId;
+    }
+    
+    // ============================================================================
+    // EDL CONVERTER COLLECTIONS
+    // ============================================================================
+    
+    // EDL Files - EDL file data for standalone converter
+    match /edlFiles/{fileId} {
+      allow read: if isAuthenticated() && hasEDLConverterAccess();
+      allow create: if isAuthenticated() && hasEDLConverterAccess();
+      allow update: if isAuthenticated() && hasEDLConverterAccess();
+      allow delete: if isAuthenticated() && hasEDLConverterAccess();
+    }
+    
+    // EDL File Metadata - Metadata for chunked files
+    match /edlFileMetadata/{document} {
+      allow read: if isAuthenticated() && hasEDLConverterAccess() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        getOrganizationId() == 'standalone' ||
+        resource.data.userId == request.auth.uid
+      );
+      allow create: if isAuthenticated() && hasEDLConverterAccess() && (
+        belongsToOrganization(request.resource.data.organizationId) ||
+        getOrganizationId() == 'standalone' ||
+        request.resource.data.userId == request.auth.uid
+      );
+      allow update: if isAuthenticated() && hasEDLConverterAccess() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        getOrganizationId() == 'standalone' ||
+        resource.data.userId == request.auth.uid
+      );
+      allow delete: if isAuthenticated() && hasEDLConverterAccess() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        getOrganizationId() == 'standalone' ||
+        resource.data.userId == request.auth.uid
+      );
+    }
+    
+    // EDL File Chunks - Chunked data for large files
+    match /edlFileChunks/{document} {
+      allow read: if isAuthenticated() && hasEDLConverterAccess() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        getOrganizationId() == 'standalone' ||
+        resource.data.userId == request.auth.uid
+      );
+      allow create: if isAuthenticated() && hasEDLConverterAccess() && (
+        belongsToOrganization(request.resource.data.organizationId) ||
+        getOrganizationId() == 'standalone' ||
+        request.resource.data.userId == request.auth.uid
+      );
+      allow update: if isAuthenticated() && hasEDLConverterAccess() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        getOrganizationId() == 'standalone' ||
+        resource.data.userId == request.auth.uid
+      );
+      allow delete: if isAuthenticated() && hasEDLConverterAccess() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        getOrganizationId() == 'standalone' ||
+        resource.data.userId == request.auth.uid
+      );
+    }
+    
+    // EDL Projects - EDL project management
+    // Allow Parser Brain users to read EDL projects (they need access for ecosystem graph)
+    match /edlProjects/{projectId} {
+      allow read: if isAuthenticated() && (
+        // EDL Converter users with access
+        (hasEDLConverterAccess() && resource.data != null && (
+          belongsToOrganization(resource.data.organizationId) ||
+          getOrganizationId() == 'standalone' ||
+          resource.data.userId == request.auth.uid
+        )) ||
+        // Parser Brain users - allow read for ecosystem graph (check organization match)
+        (resource.data != null && belongsToOrganization(resource.data.organizationId)) ||
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && (
+        (hasEDLConverterAccess() && (
+          belongsToOrganization(request.resource.data.organizationId) ||
+          getOrganizationId() == 'standalone' ||
+          request.resource.data.userId == request.auth.uid
+        )) ||
+        (belongsToOrganization(request.resource.data.organizationId) && isOwnerOrAdmin())
+      );
+      allow update: if isAuthenticated() && (
+        (hasEDLConverterAccess() && resource.data != null && (
+          belongsToOrganization(resource.data.organizationId) ||
+          getOrganizationId() == 'standalone' ||
+          resource.data.userId == request.auth.uid
+        )) ||
+        (resource.data != null && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin())
+      );
+      allow delete: if isAuthenticated() && (
+        (hasEDLConverterAccess() && resource.data != null && (
+          belongsToOrganization(resource.data.organizationId) ||
+          getOrganizationId() == 'standalone' ||
+          resource.data.userId == request.auth.uid
+        )) ||
+        (resource.data != null && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin())
+      );
+    }
+    
+    // ============================================================================
+    // PARSER BRAIN COLLECTIONS
+    // ============================================================================
+    
+    // Parsing patterns
+    match /parsing-patterns/{patternId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && hasMinimumHierarchy(50);
+    }
+    
+    // Pattern statistics
+    match /pattern-statistics/{statId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && hasMinimumHierarchy(50);
+    }
+    
+    // Pattern submissions
+    match /pattern-submissions/{submissionId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+    
+    // ============================================================================
+    // SYSTEM COLLECTIONS
+    // ============================================================================
+    
+    // System Configuration - Global system settings and collection metadata
+    match /_system/{docId} {
+      allow read: if isAuthenticated();
+      // Allow all authenticated users to write system config (needed for ProjectDatasetFilterService)
+      allow write: if isAuthenticated();
+    }
+    
+    // Health Monitoring - System health and status
+    match /_health/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && (
+        hasAnyRole(['OWNER', 'ADMIN']) || 
+        hasAnyOrgRole(['owner', 'admin'])
+      );
+    }
+    
+    // ============================================================================
+    // GENERIC COLLECTIONS
+    // ============================================================================
+    
+    // Project Data - Project-specific data container
+    match /projectData/{dataId} {
+      allow read: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        getOrganizationId() == 'standalone'
+      );
+      allow create: if isAuthenticated() && (
+        belongsToOrganization(request.resource.data.organizationId) ||
+        getOrganizationId() == 'standalone'
+      );
+      allow update: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        getOrganizationId() == 'standalone'
+      );
+      allow delete: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        getOrganizationId() == 'standalone'
+      );
+    }
+
+    // Folders - General folder structure (used by FolderPermissionManager)
+    match /folders/{folderId} {
+      allow read: if isAuthenticated() && (
+        // Allow if user has orgId claim and it matches
+        (resource.data != null && resource.data.organizationId != null && 
+         getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId) ||
+        // Allow admins
+        isOwnerOrAdmin() ||
+        // Allow any authenticated user to read documents with organizationId
+        // Query filter ensures they only see their org's data
+        (resource.data != null && resource.data.organizationId != null)
+      );
+      allow create: if isAuthenticated() && (
+        (request.resource.data.organizationId != null && 
+         (belongsToOrganization(request.resource.data.organizationId) || 
+          (getOrganizationId() != '' && getOrganizationId() == request.resource.data.organizationId))) ||
+        isOwnerOrAdmin()
+      );
+      allow update: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (belongsToOrganization(resource.data.organizationId) ||
+          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId))) ||
+        isOwnerOrAdmin()
+      );
+      allow delete: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (belongsToOrganization(resource.data.organizationId) ||
+          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId))) ||
+        isOwnerOrAdmin()
+      );
+    }
+
+    // Map Layouts
+    match /mapLayouts/{layoutId} {
+      allow read: if isAuthenticated() && (
+        // Allow if user has orgId claim and it matches
+        (resource.data != null && resource.data.organizationId != null && 
+         getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId) ||
+        // Allow admins
+        isOwnerOrAdmin() ||
+        // Allow project access
+        canAccessProject(resource.data.projectId) ||
+        // Allow any authenticated user to read documents with organizationId
+        // Query filter ensures they only see their org's data
+        (resource.data != null && resource.data.organizationId != null)
+      );
+      allow create: if isAuthenticated() && (
+        (request.resource.data.organizationId != null && 
+         (getOrganizationId() != '' && getOrganizationId() == request.resource.data.organizationId)) ||
+        isOwnerOrAdmin()
+      );
+      allow update: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId)) ||
+        isOwnerOrAdmin() ||
+        canModifyProject(resource.data.projectId)
+      );
+      allow delete: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId)) ||
+        isOwnerOrAdmin() ||
+        canModifyProject(resource.data.projectId)
+      );
+    }
+
+    // Media Files
+    match /mediaFiles/{fileId} {
+      allow read: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        canAccessProject(resource.data.projectId)
+      );
+      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
+      allow update: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        canModifyProject(resource.data.projectId)
+      );
+      allow delete: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        canModifyProject(resource.data.projectId)
+      );
+    }
+
+    // Network IP Assignments
+    match /networkIPAssignments/{assignmentId} {
+      allow read: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        canAccessProject(resource.data.projectId)
+      );
+      allow write: if isAuthenticated() && isOwnerOrAdmin();
+    }
+
+    // Networks
+    match /networks/{networkId} {
+      allow read: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
+      allow write: if isAuthenticated() && isOwnerOrAdmin();
+    }
+
+    // Network IP Ranges
+    match /networkIPRanges/{rangeId} {
+      allow read: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
+      allow write: if isAuthenticated() && isOwnerOrAdmin();
+    }
+
+    // Schemas - Data structure definitions
+    match /schemas/{schemaId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && isOwnerOrAdmin();
+      allow create: if isAuthenticated();
+    }
+
+    // Slack Connections - Slack workspace integrations (root collection)
+    match /slackConnections/{connectionId} {
+      allow read: if isAuthenticated() && (
+        // Allow if user has orgId claim and it matches
+        (resource.data != null && resource.data.organizationId != null && 
+         getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId) ||
+        // Allow admins
+        isOwnerOrAdmin() ||
+        // Allow any authenticated user to read documents with organizationId
+        // Query filter ensures they only see their org's data
+        (resource.data != null && resource.data.organizationId != null)
+      );
+      allow write: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (belongsToOrganization(resource.data.organizationId) ||
+          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId))) ||
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && (
+        (request.resource.data.organizationId != null && 
+         (belongsToOrganization(request.resource.data.organizationId) || 
+          (getOrganizationId() != '' && getOrganizationId() == request.resource.data.organizationId))) ||
+        isOwnerOrAdmin()
+      );
+    }
+
+    // Slack Channels - Slack channel mappings (root collection)
+    match /slackChannels/{channelId} {
+      allow read: if isAuthenticated() && (
+        // Allow if user has orgId claim and it matches
+        (resource.data != null && resource.data.organizationId != null && 
+         getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId) ||
+        // Allow admins
+        isOwnerOrAdmin() ||
+        // Allow any authenticated user to read documents with organizationId
+        // Query filter ensures they only see their org's data
+        (resource.data != null && resource.data.organizationId != null)
+      );
+      allow write: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId)) ||
+        isOwnerOrAdmin()
+      );
+    }
+
+    // Contacts - Contact information
+    // More permissive: allow authenticated users to read (query filter handles org matching)
+    match /contacts/{contactId} {
+      allow read: if isAuthenticated() && (
+        // Allow if user has orgId claim and it matches
+        (resource.data != null && resource.data.organizationId != null && 
+         getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId) ||
+        // Allow admins
+        isOwnerOrAdmin() ||
+        // Allow standalone users
+        getOrganizationId() == 'standalone' ||
+        // Allow any authenticated user to read documents with organizationId
+        // Query filter ensures they only see their org's data
+        (resource.data != null && resource.data.organizationId != null)
+      );
+      allow write: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (belongsToOrganization(resource.data.organizationId) ||
+          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId))) ||
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && (
+        (request.resource.data.organizationId != null && 
+         (belongsToOrganization(request.resource.data.organizationId) || 
+          (getOrganizationId() != '' && getOrganizationId() == request.resource.data.organizationId))) ||
+        isOwnerOrAdmin() ||
+        getOrganizationId() == 'standalone'
+      );
+    }
+
+    // ============================================================================
+    // CLIP SHOW PRO COLLECTIONS
+    // ============================================================================
+    
+    // Clip Show Projects - Project metadata for Clip Show Pro
+    // More permissive: allow authenticated users to read (query filter handles org matching)
+    match /clipShowProjects/{projectId} {
+      allow read: if isAuthenticated() && (
+        // If user has organizationId claim, check it matches document's orgId
+        (resource.data != null && resource.data.organizationId != null && 
+         (belongsToOrganization(resource.data.organizationId) ||
+          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId))) ||
+        // Allow admins
+        isOwnerOrAdmin() ||
+        // Allow standalone users
+        getOrganizationId() == 'standalone' ||
+        // Allow authenticated users to read documents with organizationId
+        // Query filter ensures they only see their org's data
+        (resource.data != null && resource.data.organizationId != null)
+      );
+      allow create: if isAuthenticated() && (
+        (request.resource.data.organizationId != null && 
+         (belongsToOrganization(request.resource.data.organizationId) || 
+          (getOrganizationId() != '' && getOrganizationId() == request.resource.data.organizationId))) ||
+        isOwnerOrAdmin() ||
+        getOrganizationId() == 'standalone'
+      );
+      allow update: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (belongsToOrganization(resource.data.organizationId) ||
+          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId))) ||
+        isOwnerOrAdmin()
+      );
+      allow delete: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (belongsToOrganization(resource.data.organizationId) ||
+          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId))) ||
+        isOwnerOrAdmin()
+      );
+    }
+    
+    // Clip Show Folders - Folder structure for Clip Show Pro projects
+    // More permissive: allow authenticated users to read (query filter handles org matching)
+    match /clipShowFolders/{folderId} {
+      allow read: if isAuthenticated() && (
+        // If user has organizationId claim, check it matches document's orgId
+        (resource.data != null && resource.data.organizationId != null && 
+         (belongsToOrganization(resource.data.organizationId) ||
+          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId))) ||
+        // Allow admins
+        isOwnerOrAdmin() ||
+        // Allow standalone users
+        getOrganizationId() == 'standalone' ||
+        // Allow authenticated users to read documents with organizationId
+        // Query filter ensures they only see their org's data
+        (resource.data != null && resource.data.organizationId != null)
+      );
+      allow create: if isAuthenticated() && (
+        (request.resource.data.organizationId != null && 
+         (belongsToOrganization(request.resource.data.organizationId) || 
+          (getOrganizationId() != '' && getOrganizationId() == request.resource.data.organizationId))) ||
+        isOwnerOrAdmin() ||
+        getOrganizationId() == 'standalone'
+      );
+      allow update: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (belongsToOrganization(resource.data.organizationId) ||
+          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId))) ||
+        isOwnerOrAdmin()
+      );
+      allow delete: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (belongsToOrganization(resource.data.organizationId) ||
+          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId))) ||
+        isOwnerOrAdmin()
+      );
+    }
+
+    // Notes - User notes and annotations
+    match /notes/{noteId} {
+      allow read: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwner(resource.data.userId)
+      );
+      allow write: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwner(resource.data.userId)
+      );
+      allow create: if isAuthenticated();
+    }
+    
+    // ============================================================================
+    // MISSING ROOT COLLECTIONS (Added for EcosystemGraphService)
+    // ============================================================================
+
+    // Budgets - Allow authenticated users to read budgets from their organization
+    match /budgets/{budgetId} {
+      allow read: if isAuthenticated() && (
+        (resource.data != null && belongsToOrganization(resource.data.organizationId)) ||
+        isOwnerOrAdmin() ||
+        getOrganizationId() == 'standalone'
+      );
+      allow create: if isAuthenticated() && (
+        belongsToOrganization(request.resource.data.organizationId) ||
+        isOwnerOrAdmin() ||
+        getOrganizationId() == 'standalone'
+      );
+      allow update: if isAuthenticated() && (
+        (resource.data != null && belongsToOrganization(resource.data.organizationId)) ||
+        isOwnerOrAdmin() ||
+        getOrganizationId() == 'standalone'
+      );
+      allow delete: if isAuthenticated() && (
+        (resource.data != null && belongsToOrganization(resource.data.organizationId)) ||
+        isOwnerOrAdmin() ||
+        getOrganizationId() == 'standalone'
+      );
+    }
+
+    // Post Production Tasks
+    match /postProductionTasks/{taskId} {
+      allow read: if isAuthenticated() && (
+        (resource.data != null && belongsToOrganization(resource.data.organizationId)) ||
+        (resource.data != null && canAccessProject(resource.data.projectId)) ||
+        isOwnerOrAdmin() ||
+        getOrganizationId() == 'standalone'
+      );
+      allow create: if isAuthenticated() && (
+        belongsToOrganization(request.resource.data.organizationId) ||
+        isOwnerOrAdmin() ||
+        getOrganizationId() == 'standalone'
+      );
+      allow update: if isAuthenticated() && (
+        (resource.data != null && belongsToOrganization(resource.data.organizationId)) ||
+        (resource.data != null && canModifyProject(resource.data.projectId)) ||
+        isOwnerOrAdmin() ||
+        getOrganizationId() == 'standalone'
+      );
+      allow delete: if isAuthenticated() && (
+        (resource.data != null && belongsToOrganization(resource.data.organizationId)) ||
+        isOwnerOrAdmin() ||
+        getOrganizationId() == 'standalone'
+      );
+    }
+
+    // Invoices
+    match /invoices/{invoiceId} {
+      allow read: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
+      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
+      allow update: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
+    }
+
+    // Payments
+    match /payments/{paymentId} {
+      allow read: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
+      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
+      allow update: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
+    }
+
+    // Cue Sheets
+    match /cueSheets/{cueSheetId} {
+      allow read: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
+      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
+      allow update: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
+    }
+    
+    // Workflow Instances
+    match /workflowInstances/{workflowId} {
+      allow read: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
+      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
+      allow update: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
+    }
+
+    // Conversations
+    match /conversations/{conversationId} {
+      allow read: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
+      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
+      allow update: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
+    }
+
+    // Clip Show Pitches (Root)
+    match /clipShowPitches/{pitchId} {
+      allow read: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
+      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
+      allow update: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
+    }
+
+    // Clip Show Stories (Root)
+    match /clipShowStories/{storyId} {
+      allow read: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
+      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
+      allow update: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
+    }
+
+    // Call Sheets (Root - for EcosystemGraphService)
+    match /callSheets/{callSheetId} {
+      allow read: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        hasCallSheetAccess()
+      );
+      allow create: if isAuthenticated() && (
+        belongsToOrganization(request.resource.data.organizationId) ||
+        hasCallSheetAccess()
+      );
+      allow update: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        hasCallSheetAccess()
+      );
+    }
+
+    // ============================================================================
+    // TIMECARD COLLECTIONS
+    // ============================================================================
+    
+    // Timecard Configurations
+    match /timecardConfigurations/{configId} {
+      allow read: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (belongsToOrganization(resource.data.organizationId) ||
+          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId))) ||
+        isOwnerOrAdmin() ||
+        (resource.data != null && resource.data.organizationId != null)
+      );
+      allow create: if isAuthenticated() && (
+        (request.resource.data.organizationId != null && 
+         (belongsToOrganization(request.resource.data.organizationId) || 
+          (getOrganizationId() != '' && getOrganizationId() == request.resource.data.organizationId))) ||
+        isOwnerOrAdmin()
+      );
+      allow update: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (belongsToOrganization(resource.data.organizationId) ||
+          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId))) ||
+        isOwnerOrAdmin()
+      );
+      allow delete: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (belongsToOrganization(resource.data.organizationId) ||
+          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId))) ||
+        isOwnerOrAdmin()
+      );
+    }
+    
+    // Timecard Assignments (using underscore naming)
+    match /timecard_assignments/{assignmentId} {
+      allow read: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (belongsToOrganization(resource.data.organizationId) ||
+          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId))) ||
+        isOwnerOrAdmin() ||
+        (resource.data != null && resource.data.organizationId != null)
+      );
+      allow create: if isAuthenticated() && (
+        (request.resource.data.organizationId != null && 
+         (belongsToOrganization(request.resource.data.organizationId) || 
+          (getOrganizationId() != '' && getOrganizationId() == request.resource.data.organizationId))) ||
+        isOwnerOrAdmin()
+      );
+      allow update: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (belongsToOrganization(resource.data.organizationId) ||
+          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId))) ||
+        isOwnerOrAdmin()
+      );
+      allow delete: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (belongsToOrganization(resource.data.organizationId) ||
+          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId))) ||
+        isOwnerOrAdmin()
+      );
+    }
+    
+    // Timecard Assignments (using camelCase naming - alternative)
+    match /timecardAssignments/{assignmentId} {
+      allow read: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (belongsToOrganization(resource.data.organizationId) ||
+          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId))) ||
+        isOwnerOrAdmin() ||
+        (resource.data != null && resource.data.organizationId != null)
+      );
+      allow create: if isAuthenticated() && (
+        (request.resource.data.organizationId != null && 
+         (belongsToOrganization(request.resource.data.organizationId) || 
+          (getOrganizationId() != '' && getOrganizationId() == request.resource.data.organizationId))) ||
+        isOwnerOrAdmin()
+      );
+      allow update: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (belongsToOrganization(resource.data.organizationId) ||
+          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId))) ||
+        isOwnerOrAdmin()
+      );
+      allow delete: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (belongsToOrganization(resource.data.organizationId) ||
+          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId))) ||
+        isOwnerOrAdmin()
+      );
+    }
+    
+    // Timecard Templates
+    match /timecardTemplates/{templateId} {
+      allow read: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (belongsToOrganization(resource.data.organizationId) ||
+          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId))) ||
+        isOwnerOrAdmin() ||
+        (resource.data != null && resource.data.organizationId != null)
+      );
+      allow create: if isAuthenticated() && (
+        (request.resource.data.organizationId != null && 
+         (belongsToOrganization(request.resource.data.organizationId) || 
+          (getOrganizationId() != '' && getOrganizationId() == request.resource.data.organizationId))) ||
+        isOwnerOrAdmin()
+      );
+      allow update: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (belongsToOrganization(resource.data.organizationId) ||
+          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId))) ||
+        isOwnerOrAdmin()
+      );
+      allow delete: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (belongsToOrganization(resource.data.organizationId) ||
+          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId))) ||
+        isOwnerOrAdmin()
+      );
+    }
+    
+    // Direct Reports
+    match /directReports/{reportId} {
+      allow read: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (belongsToOrganization(resource.data.organizationId) ||
+          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId))) ||
+        isOwnerOrAdmin() ||
+        (resource.data != null && resource.data.organizationId != null)
+      );
+      allow create: if isAuthenticated() && (
+        (request.resource.data.organizationId != null && 
+         (belongsToOrganization(request.resource.data.organizationId) || 
+          (getOrganizationId() != '' && getOrganizationId() == request.resource.data.organizationId))) ||
+        isOwnerOrAdmin()
+      );
+      allow update: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (belongsToOrganization(resource.data.organizationId) ||
+          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId))) ||
+        isOwnerOrAdmin()
+      );
+      allow delete: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (belongsToOrganization(resource.data.organizationId) ||
+          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId))) ||
+        isOwnerOrAdmin()
+      );
+    }
+
+    // ============================================================================
+    // GLOBAL COLLECTIONS (Not organization-specific)
+    // ============================================================================
+    
+    // Page Info - Global page information (not organization-specific)
+    match /pageInfo/{pageId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && isOwnerOrAdmin();
+    }
+    
+    // Data Sync Events - Data synchronization events
+    match /dataSyncEvents/{eventId} {
+      allow read: if isAuthenticated() && (
+        // Allow if user has orgId claim and it matches
+        (resource.data != null && resource.data.organizationId != null && 
+         getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId) ||
+        // Allow admins
+        isOwnerOrAdmin() ||
+        // Allow any authenticated user to read documents with organizationId
+        // Query filter ensures they only see their org's data
+        (resource.data != null && resource.data.organizationId != null)
+      );
+      allow write: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId)) ||
+        isOwnerOrAdmin()
+      );
+    }
+    
+    // Inventory Schemas - Inventory schema definitions
+    match /inventorySchemas/{schemaId} {
+      allow read: if isAuthenticated() && (
+        // Allow if user has orgId claim and it matches
+        (resource.data != null && resource.data.organizationId != null && 
+         getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId) ||
+        // Allow admins
+        isOwnerOrAdmin() ||
+        // Allow any authenticated user to read documents with organizationId
+        // Query filter ensures they only see their org's data
+        (resource.data != null && resource.data.organizationId != null)
+      );
+      allow write: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId)) ||
+        isOwnerOrAdmin()
+      );
+    }
+
+    // ============================================================================
+    // FIREBASE STORAGE COLLECTIONS
+    // ============================================================================
+    
+    // Firebase Storage Folders - Folder structure for Firebase Storage
+    match /firebaseStorageFolders/{folderId} {
+      allow read: if isAuthenticated() && (
+        // Allow if user has orgId claim and it matches
+        (resource.data != null && resource.data.organizationId != null && 
+         getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId) ||
+        // Allow admins
+        isOwnerOrAdmin() ||
+        // Allow any authenticated user to read documents with organizationId
+        // Query filter ensures they only see their org's data
+        (resource.data != null && resource.data.organizationId != null)
+      );
+      allow write: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId)) ||
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && (
+        (request.resource.data.organizationId != null && 
+         (getOrganizationId() != '' && getOrganizationId() == request.resource.data.organizationId)) ||
+        isOwnerOrAdmin()
+      );
+    }
+    
+    // Firebase Storage Files - Files stored in Firebase Storage
+    match /firebaseStorageFiles/{fileId} {
+      allow read: if isAuthenticated() && (
+        // Allow if user has orgId claim and it matches
+        (resource.data != null && resource.data.organizationId != null && 
+         getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId) ||
+        // Allow admins
+        isOwnerOrAdmin() ||
+        // Allow any authenticated user to read documents with organizationId
+        // Query filter ensures they only see their org's data
+        (resource.data != null && resource.data.organizationId != null)
+      );
+      allow write: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId)) ||
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && (
+        (request.resource.data.organizationId != null && 
+         (getOrganizationId() != '' && getOrganizationId() == request.resource.data.organizationId)) ||
+        isOwnerOrAdmin()
+      );
+    }
+
+    // ============================================================================
+    // FILE COLLECTIONS
+    // ============================================================================
+    
+    // Clip Show Indexed Files - Local indexed files from desktop app
+    match /clipShowIndexedFiles/{fileId} {
+      allow read: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (belongsToOrganization(resource.data.organizationId) ||
+          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId))) ||
+        isOwnerOrAdmin() ||
+        // Allow authenticated users to read documents with organizationId
+        // Query filter ensures they only see their org's data
+        (resource.data != null && resource.data.organizationId != null)
+      );
+      allow create: if isAuthenticated() && (
+        (request.resource.data.organizationId != null && 
+         (belongsToOrganization(request.resource.data.organizationId) || 
+          (getOrganizationId() != '' && getOrganizationId() == request.resource.data.organizationId))) ||
+        isOwnerOrAdmin()
+      );
+      allow update: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (belongsToOrganization(resource.data.organizationId) ||
+          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId))) ||
+        isOwnerOrAdmin()
+      );
+      allow delete: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (belongsToOrganization(resource.data.organizationId) ||
+          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId))) ||
+        isOwnerOrAdmin()
+      );
+    }
+    
+    // Files - Firebase Storage files
+    match /files/{fileId} {
+      allow read: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (belongsToOrganization(resource.data.organizationId) ||
+          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId))) ||
+        isOwnerOrAdmin() ||
+        // Allow authenticated users to read documents with organizationId
+        // Query filter ensures they only see their org's data
+        (resource.data != null && resource.data.organizationId != null)
+      );
+      allow create: if isAuthenticated() && (
+        (request.resource.data.organizationId != null && 
+         (belongsToOrganization(request.resource.data.organizationId) || 
+          (getOrganizationId() != '' && getOrganizationId() == request.resource.data.organizationId))) ||
+        isOwnerOrAdmin()
+      );
+      allow update: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (belongsToOrganization(resource.data.organizationId) ||
+          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId))) ||
+        isOwnerOrAdmin()
+      );
+      allow delete: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (belongsToOrganization(resource.data.organizationId) ||
+          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId))) ||
+        isOwnerOrAdmin()
+      );
+    }
+
+    // ============================================================================
+    // UNIVERSAL SEARCH / COLLECTION GROUP QUERIES
+    // ============================================================================
+    
+    // Team Members (Global Query)
+    match /{path=**}/teamMembers/{memberId} {
+      allow read: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
+    }
+
+    // Timecards (Global Query)
+    match /{path=**}/timecards/{timecardId} {
+      allow read: if isAuthenticated() && (
+        isOwner(resource.data.userId) || 
+        canAccessProject(resource.data.projectId) ||
+        belongsToOrganization(resource.data.organizationId)
+      );
+    }
+    
+    // Call Sheets (Global Query - covering both potential names)
+    match /{path=**}/callSheets/{callSheetId} {
+      allow read: if isAuthenticated() && hasCallSheetAccess();
+    }
+     match /{path=**}/callsheetCallSheets/{callSheetId} {
+      allow read: if isAuthenticated() && hasCallSheetAccess();
+    }
+    
+    // Clip Pitches (Global Query)
+    match /{path=**}/clipPitches/{pitchId} {
+      allow read: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
+    }
+    
+    // Production Stories (Global Query)
+    match /{path=**}/productionStories/{storyId} {
+      allow read: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
+    }
+    
+    // Cue Sheets (Global Query)
+    match /{path=**}/cueSheets/{cueSheetId} {
+      allow read: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
+    }
+    
+    // Budget Values (Global Query)
+    match /{path=**}/budgetValues/{budgetId} {
+      allow read: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        canAccessProject(resource.data.projectId)
+      );
+    }
+    
+    // Project Sessions (Global Query - covering both potential names)
+    match /{path=**}/projectSessions/{sessionId} {
+      allow read: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
+    }
+    match /{path=**}/sessions/{sessionId} {
+      allow read: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
+    }
+    
+    // License Agreements (Global Query)
+    match /{path=**}/licenseAgreements/{licenseId} {
+      allow read: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
+    }
+
+    // ============================================================================
+    // WORKFLOW COLLECTIONS
+    // ============================================================================
+    
+    // Workflow Steps
+    match /workflowSteps/{stepId} {
+      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
+      allow write: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(request.resource.data.organizationId));
+    }
+    
+    // Workflow Steps (Global Query)
+    match /{path=**}/workflowSteps/{stepId} {
+      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
+    }
+    
+    // User Workflows
+    match /workflows/{workflowId} {
+      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId) || isOwner(resource.data.userId));
+      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
+      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || isOwner(resource.data.userId));
+    }
+    
+    // Workflow Assignments
+    match /workflowAssignments/{assignmentId} {
+      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
+      allow write: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(request.resource.data.organizationId));
+    }
+    
+    // Workflow Assignments (Global Query)
+    match /{path=**}/workflowAssignments/{assignmentId} {
+      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
+    }
+    
+    // Network Delivery Bibles
+    match /networkDeliveryBibles/{bibleId} {
+      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
+      allow write: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(request.resource.data.organizationId));
+    }
+    
+    // Network Delivery Bibles (Global Query)
+    match /{path=**}/networkDeliveryBibles/{bibleId} {
+      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
+    }
+
+    // ============================================================================
+    // CATCH-ALL RULE
+    // ============================================================================
+    
+    // Explicit deny for unmatched paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -236,60 +236,6 @@ service cloud.firestore {
           isOwnerOrAdmin()
         );
       }
-      
-      // NLE Source Folders - Subcollection for Clip Show Pro
-      match /nleSourceFolders/{folderId} {
-        allow read: if isAuthenticated() && (belongsToOrganization(orgId) || isOwnerOrAdmin());
-        allow write: if isAuthenticated() && (belongsToOrganization(orgId) || isOwnerOrAdmin());
-      }
-      
-      // Integration Configs - Subcollection for OAuth connections
-      match /integrationConfigs/{configId} {
-        allow read: if isAuthenticated() && (belongsToOrganization(orgId) || isOwnerOrAdmin());
-        allow write: if isAuthenticated() && (belongsToOrganization(orgId) || isOwnerOrAdmin());
-      }
-      
-      // Webex Connections - Subcollection for Webex video conferencing
-      match /webexConnections/{connectionId} {
-        allow read: if isAuthenticated() && (belongsToOrganization(orgId) || isOwnerOrAdmin());
-        allow write: if isAuthenticated() && (belongsToOrganization(orgId) || isOwnerOrAdmin());
-      }
-      
-      // Google Connections - Subcollection for Google Meet
-      match /googleConnections/{connectionId} {
-        allow read: if isAuthenticated() && (belongsToOrganization(orgId) || isOwnerOrAdmin());
-        allow write: if isAuthenticated() && (belongsToOrganization(orgId) || isOwnerOrAdmin());
-      }
-      
-      // Drive Connections - Subcollection for Google Drive indexing
-      match /driveConnections/{connectionId} {
-        allow read: if isAuthenticated() && (belongsToOrganization(orgId) || isOwnerOrAdmin());
-        allow write: if isAuthenticated() && (belongsToOrganization(orgId) || isOwnerOrAdmin());
-      }
-      
-      // Cloud Integrations - Subcollection for cloud service integrations
-      match /cloudIntegrations/{integrationId} {
-        allow read: if isAuthenticated() && (belongsToOrganization(orgId) || isOwnerOrAdmin());
-        allow write: if isAuthenticated() && (belongsToOrganization(orgId) || isOwnerOrAdmin());
-      }
-      
-      // Slack Connections - Subcollection for Slack workspace connections
-      match /slackConnections/{connectionId} {
-        allow read: if isAuthenticated() && (belongsToOrganization(orgId) || isOwnerOrAdmin());
-        allow write: if isAuthenticated() && (belongsToOrganization(orgId) || isOwnerOrAdmin());
-      }
-      
-      // Video Meetings - Subcollection for scheduled video meetings
-      match /videoMeetings/{meetingId} {
-        allow read: if isAuthenticated() && (belongsToOrganization(orgId) || isOwnerOrAdmin());
-        allow write: if isAuthenticated() && (belongsToOrganization(orgId) || isOwnerOrAdmin());
-      }
-      
-      // Success (Subcollection) - Success tracking or metrics
-      match /success/{docId} {
-        allow read: if isAuthenticated() && (belongsToOrganization(orgId) || isOwnerOrAdmin());
-        allow write: if isAuthenticated() && (belongsToOrganization(orgId) || isOwnerOrAdmin());
-      }
     }
     
     // Team Members - Team member data
@@ -298,16 +244,6 @@ service cloud.firestore {
       allow write: if isAuthenticated() && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin();
       allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId) && isOwnerOrAdmin();
       allow update: if isAuthenticated() && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin();
-      
-      // Org Members subcollection - organization membership records
-      match /org_members/{orgMemberId} {
-        allow read, write: if isAuthenticated();
-      }
-      
-      // Team Members subcollection - nested team member records
-      match /teamMembers/{subMemberId} {
-        allow read, write: if isAuthenticated();
-      }
     }
     
     // Project Team Members - Project-specific team member assignments
@@ -320,11 +256,6 @@ service cloud.firestore {
       allow write: if isAuthenticated() && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin();
       allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId) && isOwnerOrAdmin();
       allow update: if isAuthenticated() && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin();
-      
-      // Projects subcollection - reference to projects for this team member
-      match /projects/{projectId} {
-        allow read, write: if isAuthenticated();
-      }
     }
     
     // Projects - Project data
@@ -333,11 +264,6 @@ service cloud.firestore {
       allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
       allow update: if canModifyProject(projectId);
       allow delete: if isAuthenticated() && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin();
-      
-      // Project Team Members subcollection - team members assigned to this project
-      match /projectTeamMembers/{memberId} {
-        allow read, write: if isAuthenticated();
-      }
     }
     
     // Sessions - Production sessions
@@ -349,16 +275,6 @@ service cloud.firestore {
       allow update: if belongsToOrganization(resource.data.organizationId) 
                     && request.resource.data.organizationId == resource.data.organizationId;
       allow delete: if belongsToOrganization(resource.data.organizationId);
-      
-      // Workflow Instances subcollection - inherits permissions from parent session
-      match /workflowInstances/{instanceId} {
-        allow read, write: if isAuthenticated();
-        
-        // Steps subcollection - nested under workflowInstances
-        match /steps/{stepId} {
-          allow read, write: if isAuthenticated();
-        }
-      }
     }
     
     // Timecards
@@ -1049,11 +965,6 @@ service cloud.firestore {
       allow read: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
       allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
       allow update: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
-      
-      // Steps subcollection - inherits permissions from parent workflowInstance
-      match /steps/{stepId} {
-        allow read, write: if isAuthenticated();
-      }
     }
 
     // Conversations
@@ -1061,16 +972,6 @@ service cloud.firestore {
       allow read: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
       allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
       allow update: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
-      
-      // Messages subcollection - inherits permissions from parent conversation
-      match /messages/{messageId} {
-        allow read, write: if isAuthenticated();
-      }
-      
-      // Typing Indicators subcollection - inherits permissions from parent conversation
-      match /typingIndicators/{indicatorId} {
-        allow read, write: if isAuthenticated();
-      }
     }
 
     // Clip Show Pitches (Root)
@@ -1257,9 +1158,8 @@ service cloud.firestore {
     // ============================================================================
     
     // Page Info - Global page information (not organization-specific)
-    // Public read access (help/documentation content, no sensitive data)
     match /pageInfo/{pageId} {
-      allow read: if true; // Public read access for page info/help content
+      allow read: if isAuthenticated();
       allow write: if isAuthenticated() && isOwnerOrAdmin();
     }
     
@@ -2770,11 +2670,6 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
       allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
       allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      
-      // Inventory Items subcollection - inherits permissions from parent container
-      match /inventoryItems/{itemId} {
-        allow read, write: if isAuthenticated();
-      }
     }
 
     // savedContainers (Global Query)
@@ -3312,18 +3207,6 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
     }
 
-    // workflow-instances Collection
-    match /workflow-instances/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // workflow-instances (Global Query)
-    match /{path=**}/workflow-instances/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
     // workflowDiagrams Collection
     match /workflowDiagrams/{docId} {
       allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
@@ -3345,561 +3228,6 @@ service cloud.firestore {
 
     // workflowTemplates (Global Query)
     match /{path=**}/workflowTemplates/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-    // ============================================================================
-    // CLIP SHOW PRO SPECIFIC COLLECTIONS
-    // ============================================================================
-
-    // accessLogs Collection (Clip Show Pro)
-    match /accessLogs/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // accessLogs (Global Query)
-    match /{path=**}/accessLogs/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // aiChatHistory Collection (Clip Show Pro)
-    match /aiChatHistory/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // aiChatHistory (Global Query)
-    match /{path=**}/aiChatHistory/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // airtableBackupSchedules Collection (Clip Show Pro)
-    match /airtableBackupSchedules/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // airtableBackupSchedules (Global Query)
-    match /{path=**}/airtableBackupSchedules/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // airtableBackups Collection (Clip Show Pro)
-    match /airtableBackups/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // airtableBackups (Global Query)
-    match /{path=**}/airtableBackups/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // airtableRollbackLogs Collection (Clip Show Pro)
-    match /airtableRollbackLogs/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // airtableRollbackLogs (Global Query)
-    match /{path=**}/airtableRollbackLogs/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // archivedData Collection (Clip Show Pro)
-    match /archivedData/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // archivedData (Global Query)
-    match /{path=**}/archivedData/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // automationFunctions Collection (Clip Show Pro)
-    match /automationFunctions/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // automationFunctions (Global Query)
-    match /{path=**}/automationFunctions/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // automationLogs Collection (Clip Show Pro)
-    match /automationLogs/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // automationLogs (Global Query)
-    match /{path=**}/automationLogs/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // automationRules Collection (Clip Show Pro)
-    match /automationRules/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // automationRules (Global Query)
-    match /{path=**}/automationRules/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // calendarEvents Collection (Clip Show Pro)
-    match /calendarEvents/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // calendarEvents (Global Query)
-    match /{path=**}/calendarEvents/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // clipShowClearance Collection (Clip Show Pro)
-    match /clipShowClearance/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // clipShowClearance (Global Query)
-    match /{path=**}/clipShowClearance/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // clipShowComments Collection (Clip Show Pro)
-    match /clipShowComments/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // clipShowComments (Global Query)
-    match /{path=**}/clipShowComments/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // clipShowDocuments Collection (Clip Show Pro)
-    match /clipShowDocuments/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // clipShowDocuments (Global Query)
-    match /{path=**}/clipShowDocuments/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // clipShowEpisodes Collection (Clip Show Pro)
-    match /clipShowEpisodes/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // clipShowEpisodes (Global Query)
-    match /{path=**}/clipShowEpisodes/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // clipShowLicenseAgreements Collection (Clip Show Pro)
-    match /clipShowLicenseAgreements/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // clipShowLicenseAgreements (Global Query)
-    match /{path=**}/clipShowLicenseAgreements/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // clipShowLicenseEmailHistory Collection (Clip Show Pro)
-    match /clipShowLicenseEmailHistory/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // clipShowLicenseEmailHistory (Global Query)
-    match /{path=**}/clipShowLicenseEmailHistory/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // clipShowLicenseTemplates Collection (Clip Show Pro)
-    match /clipShowLicenseTemplates/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // clipShowLicenseTemplates (Global Query)
-    match /{path=**}/clipShowLicenseTemplates/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // clipShowLicenses Collection (Clip Show Pro)
-    match /clipShowLicenses/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // clipShowLicenses (Global Query)
-    match /{path=**}/clipShowLicenses/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // clipShowLicensingSpecialists Collection (Clip Show Pro)
-    match /clipShowLicensingSpecialists/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // clipShowLicensingSpecialists (Global Query)
-    match /{path=**}/clipShowLicensingSpecialists/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // clipShowNotes Collection (Clip Show Pro)
-    match /clipShowNotes/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // clipShowNotes (Global Query)
-    match /{path=**}/clipShowNotes/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // clipShowScriptTemplates Collection (Clip Show Pro)
-    match /clipShowScriptTemplates/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // clipShowScriptTemplates (Global Query)
-    match /{path=**}/clipShowScriptTemplates/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // clipShowScripts Collection (Clip Show Pro)
-    match /clipShowScripts/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // clipShowScripts (Global Query)
-    match /{path=**}/clipShowScripts/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // clipShowSeasons Collection (Clip Show Pro)
-    match /clipShowSeasons/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // clipShowSeasons (Global Query)
-    match /{path=**}/clipShowSeasons/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // clipShowShows Collection (Clip Show Pro)
-    match /clipShowShows/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // clipShowShows (Global Query)
-    match /{path=**}/clipShowShows/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // clipShowSignedDocuments Collection (Clip Show Pro)
-    match /clipShowSignedDocuments/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // clipShowSignedDocuments (Global Query)
-    match /{path=**}/clipShowSignedDocuments/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // cloudIntegrations Collection (Clip Show Pro)
-    match /cloudIntegrations/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // cloudIntegrations (Global Query)
-    match /{path=**}/cloudIntegrations/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // collaboration Collection (Clip Show Pro)
-    match /collaboration/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // collaboration (Global Query)
-    match /{path=**}/collaboration/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // consentRecords Collection (Clip Show Pro)
-    match /consentRecords/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // consentRecords (Global Query)
-    match /{path=**}/consentRecords/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // dataExports Collection (Clip Show Pro)
-    match /dataExports/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // dataExports (Global Query)
-    match /{path=**}/dataExports/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // dataProcessingActivities Collection (Clip Show Pro)
-    match /dataProcessingActivities/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // dataProcessingActivities (Global Query)
-    match /{path=**}/dataProcessingActivities/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // dataProcessingLogs Collection (Clip Show Pro)
-    match /dataProcessingLogs/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // dataProcessingLogs (Global Query)
-    match /{path=**}/dataProcessingLogs/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // dataRetentionPolicies Collection (Clip Show Pro)
-    match /dataRetentionPolicies/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // dataRetentionPolicies (Global Query)
-    match /{path=**}/dataRetentionPolicies/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // dataSubjectRequests Collection (Clip Show Pro)
-    match /dataSubjectRequests/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // dataSubjectRequests (Global Query)
-    match /{path=**}/dataSubjectRequests/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // emailNotificationLogs Collection (Clip Show Pro)
-    match /emailNotificationLogs/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // emailNotificationLogs (Global Query)
-    match /{path=**}/emailNotificationLogs/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // emailSettings Collection (Clip Show Pro)
-    match /emailSettings/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // emailSettings (Global Query)
-    match /{path=**}/emailSettings/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // inlineComments Collection (Clip Show Pro)
-    match /inlineComments/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // inlineComments (Global Query)
-    match /{path=**}/inlineComments/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // metadata Collection (Clip Show Pro)
-    match /metadata/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // metadata (Global Query)
-    match /{path=**}/metadata/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // notificationPreferences Collection (Clip Show Pro)
-    match /notificationPreferences/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // notificationPreferences (Global Query)
-    match /{path=**}/notificationPreferences/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // pitchingLicenses Collection (Clip Show Pro)
-    match /pitchingLicenses/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // pitchingLicenses (Global Query)
-    match /{path=**}/pitchingLicenses/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // scriptApprovals Collection (Clip Show Pro)
-    match /scriptApprovals/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // scriptApprovals (Global Query)
-    match /{path=**}/scriptApprovals/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // scriptVersions Collection (Clip Show Pro)
-    match /scriptVersions/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // scriptVersions (Global Query)
-    match /{path=**}/scriptVersions/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // signedDocuments Collection (Clip Show Pro)
-    match /signedDocuments/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // signedDocuments (Global Query)
-    match /{path=**}/signedDocuments/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // transcriptionTasks Collection (Clip Show Pro)
-    match /transcriptionTasks/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // transcriptionTasks (Global Query)
-    match /{path=**}/transcriptionTasks/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // trashcan Collection (Clip Show Pro)
-    match /trashcan/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // trashcan (Global Query)
-    match /{path=**}/trashcan/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // userTableViews Collection (Clip Show Pro)
-    match /userTableViews/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // userTableViews (Global Query)
-    match /{path=**}/userTableViews/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // workflowActions Collection (Clip Show Pro)
-    match /workflowActions/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // workflowActions (Global Query)
-    match /{path=**}/workflowActions/{docId} {
       allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
     }
     // ============================================================================

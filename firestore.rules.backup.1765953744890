@@ -266,30 +266,6 @@ service cloud.firestore {
         allow read: if isAuthenticated() && (belongsToOrganization(orgId) || isOwnerOrAdmin());
         allow write: if isAuthenticated() && (belongsToOrganization(orgId) || isOwnerOrAdmin());
       }
-      
-      // Cloud Integrations - Subcollection for cloud service integrations
-      match /cloudIntegrations/{integrationId} {
-        allow read: if isAuthenticated() && (belongsToOrganization(orgId) || isOwnerOrAdmin());
-        allow write: if isAuthenticated() && (belongsToOrganization(orgId) || isOwnerOrAdmin());
-      }
-      
-      // Slack Connections - Subcollection for Slack workspace connections
-      match /slackConnections/{connectionId} {
-        allow read: if isAuthenticated() && (belongsToOrganization(orgId) || isOwnerOrAdmin());
-        allow write: if isAuthenticated() && (belongsToOrganization(orgId) || isOwnerOrAdmin());
-      }
-      
-      // Video Meetings - Subcollection for scheduled video meetings
-      match /videoMeetings/{meetingId} {
-        allow read: if isAuthenticated() && (belongsToOrganization(orgId) || isOwnerOrAdmin());
-        allow write: if isAuthenticated() && (belongsToOrganization(orgId) || isOwnerOrAdmin());
-      }
-      
-      // Success (Subcollection) - Success tracking or metrics
-      match /success/{docId} {
-        allow read: if isAuthenticated() && (belongsToOrganization(orgId) || isOwnerOrAdmin());
-        allow write: if isAuthenticated() && (belongsToOrganization(orgId) || isOwnerOrAdmin());
-      }
     }
     
     // Team Members - Team member data
@@ -298,16 +274,6 @@ service cloud.firestore {
       allow write: if isAuthenticated() && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin();
       allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId) && isOwnerOrAdmin();
       allow update: if isAuthenticated() && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin();
-      
-      // Org Members subcollection - organization membership records
-      match /org_members/{orgMemberId} {
-        allow read, write: if isAuthenticated();
-      }
-      
-      // Team Members subcollection - nested team member records
-      match /teamMembers/{subMemberId} {
-        allow read, write: if isAuthenticated();
-      }
     }
     
     // Project Team Members - Project-specific team member assignments
@@ -320,11 +286,6 @@ service cloud.firestore {
       allow write: if isAuthenticated() && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin();
       allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId) && isOwnerOrAdmin();
       allow update: if isAuthenticated() && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin();
-      
-      // Projects subcollection - reference to projects for this team member
-      match /projects/{projectId} {
-        allow read, write: if isAuthenticated();
-      }
     }
     
     // Projects - Project data
@@ -333,11 +294,6 @@ service cloud.firestore {
       allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
       allow update: if canModifyProject(projectId);
       allow delete: if isAuthenticated() && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin();
-      
-      // Project Team Members subcollection - team members assigned to this project
-      match /projectTeamMembers/{memberId} {
-        allow read, write: if isAuthenticated();
-      }
     }
     
     // Sessions - Production sessions
@@ -349,16 +305,6 @@ service cloud.firestore {
       allow update: if belongsToOrganization(resource.data.organizationId) 
                     && request.resource.data.organizationId == resource.data.organizationId;
       allow delete: if belongsToOrganization(resource.data.organizationId);
-      
-      // Workflow Instances subcollection - inherits permissions from parent session
-      match /workflowInstances/{instanceId} {
-        allow read, write: if isAuthenticated();
-        
-        // Steps subcollection - nested under workflowInstances
-        match /steps/{stepId} {
-          allow read, write: if isAuthenticated();
-        }
-      }
     }
     
     // Timecards
@@ -1049,11 +995,6 @@ service cloud.firestore {
       allow read: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
       allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
       allow update: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
-      
-      // Steps subcollection - inherits permissions from parent workflowInstance
-      match /steps/{stepId} {
-        allow read, write: if isAuthenticated();
-      }
     }
 
     // Conversations
@@ -1061,16 +1002,6 @@ service cloud.firestore {
       allow read: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
       allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
       allow update: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
-      
-      // Messages subcollection - inherits permissions from parent conversation
-      match /messages/{messageId} {
-        allow read, write: if isAuthenticated();
-      }
-      
-      // Typing Indicators subcollection - inherits permissions from parent conversation
-      match /typingIndicators/{indicatorId} {
-        allow read, write: if isAuthenticated();
-      }
     }
 
     // Clip Show Pitches (Root)
@@ -1257,9 +1188,8 @@ service cloud.firestore {
     // ============================================================================
     
     // Page Info - Global page information (not organization-specific)
-    // Public read access (help/documentation content, no sensitive data)
     match /pageInfo/{pageId} {
-      allow read: if true; // Public read access for page info/help content
+      allow read: if isAuthenticated();
       allow write: if isAuthenticated() && isOwnerOrAdmin();
     }
     
@@ -2770,11 +2700,6 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
       allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
       allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      
-      // Inventory Items subcollection - inherits permissions from parent container
-      match /inventoryItems/{itemId} {
-        allow read, write: if isAuthenticated();
-      }
     }
 
     // savedContainers (Global Query)
@@ -3309,18 +3234,6 @@ service cloud.firestore {
 
     // workflow-templates (Global Query)
     match /{path=**}/workflow-templates/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // workflow-instances Collection
-    match /workflow-instances/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
-    }
-
-    // workflow-instances (Global Query)
-    match /{path=**}/workflow-instances/{docId} {
       allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
     }
 
