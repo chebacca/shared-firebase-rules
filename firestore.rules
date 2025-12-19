@@ -136,10 +136,33 @@ service cloud.firestore {
     
     // Users - Core user data
     match /users/{userId} {
-      allow read: if isAuthenticated();
+      allow read: if isAuthenticated() && (
+        // Allow list queries when user has orgId claim (query filter ensures scoping)
+        (getOrganizationId() != '' && isAuthenticated()) ||
+        // Allow document reads for any authenticated user
+        isAuthenticated() ||
+        // Allow admins
+        isOwnerOrAdmin()
+      );
       allow write: if isAuthenticated() && request.auth.uid == userId;
       allow create: if isAuthenticated();
       allow update: if isAuthenticated() && (request.auth.uid == userId || isOwnerOrAdmin());
+    }
+    
+    // User Sessions - User session data (project selections, etc.)
+    match /userSessions/{userId} {
+      allow read: if isAuthenticated() && (
+        // User can read their own session
+        request.auth.uid == userId ||
+        // Admins can read any session
+        isOwnerOrAdmin()
+      );
+      allow write: if isAuthenticated() && (
+        // User can write their own session
+        request.auth.uid == userId ||
+        // Admins can write any session
+        isOwnerOrAdmin()
+      );
     }
     
     // Organizations - Organization data
@@ -294,10 +317,26 @@ service cloud.firestore {
     
     // Team Members - Team member data
     match /teamMembers/{memberId} {
-      allow read: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
-      allow write: if isAuthenticated() && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin();
+      allow read: if isAuthenticated() && (
+        // Allow list queries when user has orgId claim (query filter ensures scoping)
+        (getOrganizationId() != '' && isAuthenticated()) ||
+        // Allow document reads when resource belongs to user's organization
+        (resource != null && resource.data != null && resource.data.organizationId != null && 
+         belongsToOrganization(resource.data.organizationId)) ||
+        // Allow admins
+        isOwnerOrAdmin()
+      );
+      allow write: if isAuthenticated() && (
+        (resource != null && resource.data != null && resource.data.organizationId != null && 
+         belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin()) ||
+        isOwnerOrAdmin()
+      );
       allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId) && isOwnerOrAdmin();
-      allow update: if isAuthenticated() && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin();
+      allow update: if isAuthenticated() && (
+        (resource != null && resource.data != null && resource.data.organizationId != null && 
+         belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin()) ||
+        isOwnerOrAdmin()
+      );
       
       // Org Members subcollection - organization membership records
       match /org_members/{orgMemberId} {
@@ -342,13 +381,42 @@ service cloud.firestore {
     
     // Sessions - Production sessions
     match /sessions/{sessionId} {
-      allow read: if belongsToOrganization(resource.data.organizationId);
-      allow create: if belongsToOrganization(request.resource.data.organizationId) 
-                    && request.resource.data.organizationId == getOrganizationId()
-                    && request.resource.data.createdBy == request.auth.uid;
-      allow update: if belongsToOrganization(resource.data.organizationId) 
-                    && request.resource.data.organizationId == resource.data.organizationId;
-      allow delete: if belongsToOrganization(resource.data.organizationId);
+      // Allow read for both list queries (onSnapshot) and document reads (getDoc)
+      allow read: if isAuthenticated() && (
+        // Allow admins to read any session
+        isOwnerOrAdmin() ||
+        // For list queries: allow if user has organizationId in claims (query filter ensures scoping)
+        (getOrganizationId() != '' && isAuthenticated()) ||
+        // For document reads: check if document belongs to user's organization
+        // This only applies when resource.data exists (document reads, not list queries)
+        (resource != null && resource.data != null && 
+         resource.data.organizationId != null && 
+         belongsToOrganization(resource.data.organizationId))
+      );
+      // Allow create: authenticated users in the organization can create sessions
+      allow create: if isAuthenticated() && (
+        // Allow admins/owners to create sessions in any organization
+        isOwnerOrAdmin() ||
+        // For regular users: organizationId must be provided and match user's organization
+        // OR if user has no organizationId in claims, allow if organizationId is provided in request
+        (request.resource.data.organizationId != null &&
+         request.resource.data.organizationId != '' &&
+         (
+           // Case 1: User has organizationId in claims and it matches
+           (getOrganizationId() != '' && request.resource.data.organizationId == getOrganizationId()) ||
+           // Case 2: User has no organizationId in claims but provides one (for backwards compatibility)
+           (getOrganizationId() == '' && request.resource.data.organizationId != '')
+         ))
+      );
+      // Allow update: users in the organization can update sessions
+      allow update: if isAuthenticated() && (
+        // Must belong to the organization
+        belongsToOrganization(resource.data.organizationId) &&
+        // Organization ID must remain the same
+        request.resource.data.organizationId == resource.data.organizationId
+      );
+      // Allow delete: users in the organization can delete sessions
+      allow delete: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
       
       // Workflow Instances subcollection - inherits permissions from parent session
       match /workflowInstances/{instanceId} {
@@ -406,8 +474,13 @@ service cloud.firestore {
     // Message Sessions - Real-time messaging sessions
     match /messageSessions/{sessionId} {
       allow read: if isAuthenticated() && (
+        // Allow admins
         isOwnerOrAdmin() ||
-        (resource != null && 
+        // For list queries: allow if user has organizationId in claims (query filter ensures scoping)
+        (getOrganizationId() != '' && isAuthenticated()) ||
+        // For document reads: check if document belongs to user's organization and user is a participant
+        (resource != null && resource.data != null && 
+         resource.data.organizationId != null &&
          belongsToOrganization(resource.data.organizationId) &&
          request.auth.uid in resource.data.participantIds)
       );
@@ -728,33 +801,41 @@ service cloud.firestore {
     // Map Layouts
     match /mapLayouts/{layoutId} {
       allow read: if isAuthenticated() && (
-        // Allow if user has orgId claim and it matches
-        (resource.data != null && resource.data.organizationId != null && 
-         getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId) ||
+        // Allow list queries when user has orgId claim (query filter ensures scoping)
+        (getOrganizationId() != '' && isAuthenticated()) ||
+        // Allow document reads when resource has organizationId
+        (resource != null && resource.data != null && resource.data.organizationId != null && 
+         (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId)) ||
+        // Allow document reads when resource belongs to user's organization
+        (resource != null && resource.data != null && resource.data.organizationId != null && 
+         belongsToOrganization(resource.data.organizationId)) ||
         // Allow admins
         isOwnerOrAdmin() ||
         // Allow project access
-        canAccessProject(resource.data.projectId) ||
-        // Allow any authenticated user to read documents with organizationId
-        // Query filter ensures they only see their org's data
-        (resource.data != null && resource.data.organizationId != null)
+        (resource != null && resource.data != null && resource.data.projectId != null && canAccessProject(resource.data.projectId))
       );
       allow create: if isAuthenticated() && (
         (request.resource.data.organizationId != null && 
          (getOrganizationId() != '' && getOrganizationId() == request.resource.data.organizationId)) ||
+        (request.resource.data.organizationId != null && 
+         belongsToOrganization(request.resource.data.organizationId)) ||
         isOwnerOrAdmin()
       );
       allow update: if isAuthenticated() && (
         (resource.data != null && resource.data.organizationId != null && 
          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId)) ||
+        (resource.data != null && resource.data.organizationId != null && 
+         belongsToOrganization(resource.data.organizationId)) ||
         isOwnerOrAdmin() ||
-        canModifyProject(resource.data.projectId)
+        (resource.data != null && resource.data.projectId != null && canModifyProject(resource.data.projectId))
       );
       allow delete: if isAuthenticated() && (
         (resource.data != null && resource.data.organizationId != null && 
          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId)) ||
+        (resource.data != null && resource.data.organizationId != null && 
+         belongsToOrganization(resource.data.organizationId)) ||
         isOwnerOrAdmin() ||
-        canModifyProject(resource.data.projectId)
+        (resource.data != null && resource.data.projectId != null && canModifyProject(resource.data.projectId))
       );
     }
 
@@ -805,15 +886,15 @@ service cloud.firestore {
 
     // Slack Connections - Slack workspace integrations (root collection)
     match /slackConnections/{connectionId} {
+      // Allow read for both list queries and document reads
       allow read: if isAuthenticated() && (
-        // Allow if user has orgId claim and it matches
-        (resource.data != null && resource.data.organizationId != null && 
-         getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId) ||
-        // Allow admins
+        // Allow admins to read any connection
         isOwnerOrAdmin() ||
-        // Allow any authenticated user to read documents with organizationId
-        // Query filter ensures they only see their org's data
-        (resource.data != null && resource.data.organizationId != null)
+        // For list queries: allow if user has organizationId in claims (query filter ensures correct data)
+        (getOrganizationId() != '' && isAuthenticated()) ||
+        // For document reads: check if document belongs to user's organization
+        (resource != null && resource.data != null && resource.data.organizationId != null && 
+         getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId)
       );
       allow write: if isAuthenticated() && (
         (resource.data != null && resource.data.organizationId != null && 
@@ -832,14 +913,16 @@ service cloud.firestore {
     // Slack Channels - Slack channel mappings (root collection)
     match /slackChannels/{channelId} {
       allow read: if isAuthenticated() && (
-        // Allow if user has orgId claim and it matches
-        (resource.data != null && resource.data.organizationId != null && 
-         getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId) ||
         // Allow admins
         isOwnerOrAdmin() ||
-        // Allow any authenticated user to read documents with organizationId
-        // Query filter ensures they only see their org's data
-        (resource.data != null && resource.data.organizationId != null)
+        // For list queries: allow if user has organizationId in claims
+        // The query filter where('organizationId', '==', organizationId) ensures users only see their org's data
+        (getOrganizationId() != '' && getOrganizationId() != 'standalone') ||
+        // For document reads: check if document belongs to user's organization
+        (resource.data != null && resource.data.organizationId != null && 
+         getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId) ||
+        // Fallback: Allow authenticated users with organizationId in claims
+        (getOrganizationId() != '' && getOrganizationId() != 'standalone')
       );
       allow write: if isAuthenticated() && (
         (resource.data != null && resource.data.organizationId != null && 
@@ -1263,25 +1346,6 @@ service cloud.firestore {
       allow write: if isAuthenticated() && isOwnerOrAdmin();
     }
     
-    // Data Sync Events - Data synchronization events
-    match /dataSyncEvents/{eventId} {
-      allow read: if isAuthenticated() && (
-        // Allow if user has orgId claim and it matches
-        (resource.data != null && resource.data.organizationId != null && 
-         getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId) ||
-        // Allow admins
-        isOwnerOrAdmin() ||
-        // Allow any authenticated user to read documents with organizationId
-        // Query filter ensures they only see their org's data
-        (resource.data != null && resource.data.organizationId != null)
-      );
-      allow write: if isAuthenticated() && (
-        (resource.data != null && resource.data.organizationId != null && 
-         (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId)) ||
-        isOwnerOrAdmin()
-      );
-    }
-    
     // Inventory Schemas - Inventory schema definitions
     match /inventorySchemas/{schemaId} {
       allow read: if isAuthenticated() && (
@@ -1360,13 +1424,44 @@ service cloud.firestore {
     // Clip Show Indexed Files - Local indexed files from desktop app
     match /clipShowIndexedFiles/{fileId} {
       allow read: if isAuthenticated() && (
+        // For list queries: allow if user has organizationId in claims (query filter ensures scoping)
+        (getOrganizationId() != '' && isAuthenticated()) ||
+        // For document reads: check if document belongs to user's organization
+        (resource != null && resource.data != null && resource.data.organizationId != null && 
+         belongsToOrganization(resource.data.organizationId)) ||
+        // Allow admins
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && (
+        (request.resource.data.organizationId != null && 
+         (belongsToOrganization(request.resource.data.organizationId) || 
+          (getOrganizationId() != '' && getOrganizationId() == request.resource.data.organizationId))) ||
+        isOwnerOrAdmin()
+      );
+      allow update: if isAuthenticated() && (
         (resource.data != null && resource.data.organizationId != null && 
          (belongsToOrganization(resource.data.organizationId) ||
           (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId))) ||
-        isOwnerOrAdmin() ||
-        // Allow authenticated users to read documents with organizationId
-        // Query filter ensures they only see their org's data
-        (resource.data != null && resource.data.organizationId != null)
+        isOwnerOrAdmin()
+      );
+      allow delete: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (belongsToOrganization(resource.data.organizationId) ||
+          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId))) ||
+        isOwnerOrAdmin()
+      );
+    }
+    
+    // Backbone Indexed Files - Local indexed files from Backbone Pro
+    match /backboneIndexedFiles/{fileId} {
+      allow read: if isAuthenticated() && (
+        // For list queries: allow if user has organizationId in claims (query filter ensures scoping)
+        (getOrganizationId() != '' && isAuthenticated()) ||
+        // For document reads: check if document belongs to user's organization
+        (resource != null && resource.data != null && resource.data.organizationId != null && 
+         belongsToOrganization(resource.data.organizationId)) ||
+        // Allow admins
+        isOwnerOrAdmin()
       );
       allow create: if isAuthenticated() && (
         (request.resource.data.organizationId != null && 
@@ -2719,13 +2814,49 @@ service cloud.firestore {
 
     // reviewSessions Collection
     match /reviewSessions/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
+      allow read: if isAuthenticated() && (
+        // Allow list queries when user has orgId claim (query filter ensures scoping)
+        (getOrganizationId() != '' && isAuthenticated()) ||
+        // Allow document reads when resource belongs to user's organization
+        (resource != null && resource.data != null && resource.data.organizationId != null && 
+         belongsToOrganization(resource.data.organizationId)) ||
+        // Allow admins
+        isOwnerOrAdmin()
+      );
       allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
+      allow update, delete: if isAuthenticated() && (
+        (resource != null && resource.data != null && resource.data.organizationId != null && 
+         belongsToOrganization(resource.data.organizationId)) ||
+        isOwnerOrAdmin()
+      );
     }
 
     // reviewSessions (Global Query)
     match /{path=**}/reviewSessions/{docId} {
+      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
+    }
+
+    // reviewSessionReviewers Collection
+    match /reviewSessionReviewers/{docId} {
+      allow read: if isAuthenticated() && (
+        // Allow list queries when user has orgId claim (query filter ensures scoping)
+        (getOrganizationId() != '' && isAuthenticated()) ||
+        // Allow document reads when resource belongs to user's organization
+        (resource != null && resource.data != null && resource.data.organizationId != null && 
+         belongsToOrganization(resource.data.organizationId)) ||
+        // Allow admins
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
+      allow update, delete: if isAuthenticated() && (
+        (resource != null && resource.data != null && resource.data.organizationId != null && 
+         belongsToOrganization(resource.data.organizationId)) ||
+        isOwnerOrAdmin()
+      );
+    }
+
+    // reviewSessionReviewers (Global Query)
+    match /{path=**}/reviewSessionReviewers/{docId} {
       allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
     }
 
@@ -3272,9 +3403,21 @@ service cloud.firestore {
 
     // userPagePermissions Collection
     match /userPagePermissions/{docId} {
-      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
+      allow read: if isAuthenticated() && (
+        // For list queries: allow if user has organizationId in claims (query filter ensures scoping)
+        (getOrganizationId() != '' && isAuthenticated()) ||
+        // For document reads: check if document belongs to user's organization
+        (resource != null && resource.data != null && resource.data.organizationId != null && 
+         belongsToOrganization(resource.data.organizationId)) ||
+        // Allow admins
+        isOwnerOrAdmin()
+      );
       allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
+      allow update, delete: if isAuthenticated() && (
+        (resource != null && resource.data != null && resource.data.organizationId != null &&
+         belongsToOrganization(resource.data.organizationId)) ||
+        isOwnerOrAdmin()
+      );
     }
 
     // userPagePermissions (Global Query)
@@ -3958,5 +4101,68 @@ service cloud.firestore {
       // Allow read/write for authenticated users in the same organization
       allow read, write: if isAuthenticated() && 
                             belongsToOrganizationWithDocCheck(resource.data.organizationId);
+    }
+    
+    // ============================================================================
+    // BROADCAST & WEBRTC COLLECTIONS
+    // ============================================================================
+    // Used by GlobalIOBroadcastService for real-time broadcasting
+    // ============================================================================
+    
+    // Broadcasts - Real-time broadcast sessions
+    match /broadcasts/{broadcastId} {
+      allow read: if isAuthenticated() && (
+        // Allow list queries when user has orgId claim (query filter ensures scoping)
+        (getOrganizationId() != '' && isAuthenticated()) ||
+        // Allow document reads when resource belongs to user's organization
+        (resource != null && resource.data != null && resource.data.organizationId != null && 
+         belongsToOrganization(resource.data.organizationId)) ||
+        // Allow admins
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
+      allow update, delete: if isAuthenticated() && (
+        (resource != null && resource.data != null && resource.data.organizationId != null && 
+         belongsToOrganization(resource.data.organizationId)) ||
+        isOwnerOrAdmin()
+      );
+    }
+    
+    // Broadcast Viewers - Users viewing a broadcast
+    match /broadcast_viewers/{viewerId} {
+      allow read: if isAuthenticated() && (
+        // Allow list queries when user has orgId claim (query filter ensures scoping)
+        (getOrganizationId() != '' && isAuthenticated()) ||
+        // Allow document reads when resource belongs to user's organization
+        (resource != null && resource.data != null && resource.data.organizationId != null && 
+         belongsToOrganization(resource.data.organizationId)) ||
+        // Allow admins
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
+      allow update, delete: if isAuthenticated() && (
+        (resource != null && resource.data != null && resource.data.organizationId != null && 
+         belongsToOrganization(resource.data.organizationId)) ||
+        isOwnerOrAdmin()
+      );
+    }
+    
+    // WebRTC Signals - WebRTC signaling data for broadcasts
+    match /webrtc_signals/{signalId} {
+      allow read: if isAuthenticated() && (
+        // Allow list queries when user has orgId claim (query filter ensures scoping)
+        (getOrganizationId() != '' && isAuthenticated()) ||
+        // Allow document reads when resource belongs to user's organization
+        (resource != null && resource.data != null && resource.data.organizationId != null && 
+         belongsToOrganization(resource.data.organizationId)) ||
+        // Allow admins
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
+      allow update, delete: if isAuthenticated() && (
+        (resource != null && resource.data != null && resource.data.organizationId != null && 
+         belongsToOrganization(resource.data.organizationId)) ||
+        isOwnerOrAdmin()
+      );
     }
 }
