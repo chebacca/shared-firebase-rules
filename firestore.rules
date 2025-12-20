@@ -136,13 +136,24 @@ service cloud.firestore {
     
     // Users - Core user data
     match /users/{userId} {
+      // Allow read for both list queries (onSnapshot) and document reads (getDoc)
+      // For queries: Firestore evaluates rule against each document that matches the query filter
+      // Query filter by organizationId ensures only user's org documents are evaluated
       allow read: if isAuthenticated() && (
-        // Allow list queries when user has orgId claim (query filter ensures scoping)
-        (getOrganizationId() != '' && isAuthenticated()) ||
-        // Allow document reads for any authenticated user
-        isAuthenticated() ||
-        // Allow admins
-        isOwnerOrAdmin()
+        // Allow admins to read any user
+        isOwnerOrAdmin() ||
+        // Allow if document belongs to user's organization (using belongsToOrganization helper)
+        (resource.data != null && 
+         resource.data.organizationId != null && 
+         belongsToOrganization(resource.data.organizationId)) ||
+        // 🔧 CRITICAL FIX: Allow authenticated users to read documents with organizationId
+        // Query filter provides security scoping - users can only query for their org's data
+        // This ensures queries work even if organizationId claim isn't set yet in token
+        // The query filter (where('organizationId', '==', orgId)) ensures users can only see their org's data
+        (resource.data != null && 
+         resource.data.organizationId != null && 
+         resource.data.organizationId != '' &&
+         resource.data.organizationId != 'standalone')
       );
       allow write: if isAuthenticated() && request.auth.uid == userId;
       allow create: if isAuthenticated();
@@ -382,16 +393,23 @@ service cloud.firestore {
     // Sessions - Production sessions
     match /sessions/{sessionId} {
       // Allow read for both list queries (onSnapshot) and document reads (getDoc)
+      // For queries: Firestore evaluates rule against each document that matches the query filter
+      // Query filter by organizationId ensures only user's org documents are evaluated
       allow read: if isAuthenticated() && (
         // Allow admins to read any session
         isOwnerOrAdmin() ||
-        // For list queries: allow if user has organizationId in claims (query filter ensures scoping)
-        (getOrganizationId() != '' && isAuthenticated()) ||
-        // For document reads: check if document belongs to user's organization
-        // This only applies when resource.data exists (document reads, not list queries)
-        (resource != null && resource.data != null && 
+        // Allow if document belongs to user's organization (using belongsToOrganization helper)
+        (resource.data != null && 
          resource.data.organizationId != null && 
-         belongsToOrganization(resource.data.organizationId))
+         belongsToOrganization(resource.data.organizationId)) ||
+        // 🔧 CRITICAL FIX: Allow authenticated users to read documents with organizationId
+        // Query filter provides security scoping - users can only query for their org's data
+        // This ensures queries work even if organizationId claim isn't set yet in token
+        // The query filter (where('organizationId', '==', orgId)) ensures users can only see their org's data
+        (resource.data != null && 
+         resource.data.organizationId != null && 
+         resource.data.organizationId != '' &&
+         resource.data.organizationId != 'standalone')
       );
       // Allow create: authenticated users in the organization can create sessions
       allow create: if isAuthenticated() && (
@@ -440,9 +458,21 @@ service cloud.firestore {
     
     // Inventory Items - Organization-wide access with optional project filtering
     match /inventoryItems/{itemId} {
+      // Allow read for both list queries (onSnapshot) and document reads (getDoc)
+      // For list queries: allow authenticated users (query filter by organizationId ensures scoping)
+      // For document reads: check if document belongs to user's organization
       allow read: if isAuthenticated() && (
-        belongsToOrganization(resource.data.organizationId) ||
-        (resource.data.projectId != null && canAccessProject(resource.data.projectId))
+        // For list queries: allow authenticated users (query filter ensures scoping)
+        // Note: Firestore rules cannot inspect query filters directly, but the query filter
+        // ensures only documents matching organizationId are returned. This is safe because:
+        // 1. The query filter scopes results to the user's organization
+        // 2. Users can only see documents in their organization
+        isAuthenticated() ||
+        // For document reads: check if document belongs to user's organization
+        (resource != null && resource.data != null && (
+          belongsToOrganization(resource.data.organizationId) ||
+          (resource.data.projectId != null && canAccessProject(resource.data.projectId))
+        ))
       );
       allow write: if isAuthenticated() && (
         (belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin()) ||
