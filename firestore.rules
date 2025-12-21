@@ -2890,6 +2890,30 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
     }
 
+    // reviewFilePaths Collection
+    match /reviewFilePaths/{docId} {
+      allow read: if isAuthenticated() && (
+        // Allow list queries when user has orgId claim (query filter ensures scoping)
+        (getOrganizationId() != '' && isAuthenticated()) ||
+        // Allow document reads when resource belongs to user's organization
+        (resource != null && resource.data != null && resource.data.organizationId != null && 
+         belongsToOrganization(resource.data.organizationId)) ||
+        // Allow admins
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
+      allow update, delete: if isAuthenticated() && (
+        (resource != null && resource.data != null && resource.data.organizationId != null && 
+         belongsToOrganization(resource.data.organizationId)) ||
+        isOwnerOrAdmin()
+      );
+    }
+
+    // reviewFilePaths (Global Query)
+    match /{path=**}/reviewFilePaths/{docId} {
+      allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
+    }
+
     // rolePermissionCalculations Collection
     match /rolePermissionCalculations/{docId} {
       allow read: if isAuthenticated() && (isOwnerOrAdmin() || belongsToOrganization(resource.data.organizationId));
