@@ -307,6 +307,12 @@ service cloud.firestore {
         allow write: if isAuthenticated() && (belongsToOrganization(orgId) || isOwnerOrAdmin());
       }
       
+      // Integration Settings - Subcollection for integration OAuth configuration (Google, Webex, etc.)
+      match /integrationSettings/{settingId} {
+        allow read: if isAuthenticated() && (belongsToOrganization(orgId) || isOwnerOrAdmin());
+        allow write: if isAuthenticated() && (belongsToOrganization(orgId) || isOwnerOrAdmin());
+      }
+      
       // Slack Connections - Subcollection for Slack workspace connections
       match /slackConnections/{connectionId} {
         allow read: if isAuthenticated() && (belongsToOrganization(orgId) || isOwnerOrAdmin());
@@ -4128,9 +4134,20 @@ service cloud.firestore {
     // ============================================================================
     
     match /airtableSyncStatus/{docId} {
-      // Allow read/write for authenticated users in the same organization
-      allow read, write: if isAuthenticated() && 
-                            belongsToOrganizationWithDocCheck(resource.data.organizationId);
+      // Allow read for authenticated users in the same organization
+      // For queries: allow if user belongs to organization (query filter ensures scoping)
+      // For individual reads: check document's organizationId
+      allow read: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin() ||
+        (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId)
+      );
+      // Allow write for authenticated users in the same organization
+      allow create: if isAuthenticated() && belongsToOrganization(request.resource.data.organizationId);
+      allow update, delete: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        isOwnerOrAdmin()
+      );
     }
 
     // ============================================================================
