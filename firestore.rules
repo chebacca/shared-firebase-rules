@@ -321,8 +321,26 @@ service cloud.firestore {
       
       // Video Meetings - Subcollection for scheduled video meetings
       match /videoMeetings/{meetingId} {
-        allow read: if isAuthenticated() && (belongsToOrganization(orgId) || isOwnerOrAdmin());
-        allow write: if isAuthenticated() && (belongsToOrganization(orgId) || isOwnerOrAdmin());
+        // Allow read for authenticated users in the organization
+        allow read: if isAuthenticated() && (
+          belongsToOrganization(orgId) || 
+          isOwnerOrAdmin() ||
+          // Allow if document has organizationId field matching user's org
+          (resource.data != null && resource.data.organizationId != null && belongsToOrganization(resource.data.organizationId))
+        );
+        // Allow write for authenticated users in the organization
+        allow write: if isAuthenticated() && (
+          belongsToOrganization(orgId) || 
+          isOwnerOrAdmin() ||
+          // Allow if request includes organizationId matching user's org
+          (request.resource.data != null && request.resource.data.organizationId != null && belongsToOrganization(request.resource.data.organizationId))
+        );
+        // Allow create for authenticated users (organizationId from path or document)
+        allow create: if isAuthenticated() && (
+          belongsToOrganization(orgId) ||
+          isOwnerOrAdmin() ||
+          (request.resource.data != null && request.resource.data.organizationId != null && belongsToOrganization(request.resource.data.organizationId))
+        );
       }
       
       // Success (Subcollection) - Success tracking or metrics
@@ -4140,11 +4158,9 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (
         // Allow admins to read any document
         isOwnerOrAdmin() ||
-        // For queries: allow if user is authenticated (query filter provides security)
-        // Query filter where('organizationId', '==', orgId) ensures users only see their org's data
-        // During query evaluation, resource.data might be null, so we allow authenticated users
-        // The query filter ensures they only see documents matching their organizationId
-        (resource.data == null || resource.data.organizationId == null) ||
+        // For queries: During query evaluation, resource.data is null, so we allow authenticated users
+        // The query filter where('organizationId', '==', orgId) ensures they only see their org's data
+        resource.data == null ||
         // For individual document reads: check document's organizationId
         (resource.data != null && resource.data.organizationId != null && (
           belongsToOrganization(resource.data.organizationId) ||

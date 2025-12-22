@@ -1,0 +1,21 @@
+{
+  "rules": {
+    "videoMeetings": {
+      "$meetingId": {
+        "signaling": {
+          ".read": "auth != null",
+          ".write": "auth != null"
+        },
+        "participants": {
+          "$participantId": {
+            ".read": "auth != null",
+            ".write": "auth != null && ($participantId == auth.uid || newData.child('organizationId').val() == auth.token.organizationId)"
+          }
+        }
+      }
+    },
+    ".read": false,
+    ".write": false
+  }
+}
+
