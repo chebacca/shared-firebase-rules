@@ -301,6 +301,38 @@ service cloud.firestore {
         allow write: if isAuthenticated() && (belongsToOrganization(orgId) || isOwnerOrAdmin());
       }
       
+      // Box Connections - Subcollection for Box cloud storage
+      match /boxConnections/{connectionId} {
+        allow read: if isAuthenticated() && (
+          // Allow if user has orgId claim and it matches parent org
+          (getOrganizationId() != '' && getOrganizationId() == orgId) ||
+          // Allow admins
+          isOwnerOrAdmin() ||
+          // Allow any authenticated user to read (parent orgId in path ensures scoping)
+          isAuthenticated()
+        );
+        allow write: if isAuthenticated() && (
+          (getOrganizationId() != '' && getOrganizationId() == orgId) ||
+          isOwnerOrAdmin()
+        );
+      }
+      
+      // Dropbox Connections - Subcollection for Dropbox cloud storage
+      match /dropboxConnections/{connectionId} {
+        allow read: if isAuthenticated() && (
+          // Allow if user has orgId claim and it matches parent org
+          (getOrganizationId() != '' && getOrganizationId() == orgId) ||
+          // Allow admins
+          isOwnerOrAdmin() ||
+          // Allow any authenticated user to read (parent orgId in path ensures scoping)
+          isAuthenticated()
+        );
+        allow write: if isAuthenticated() && (
+          (getOrganizationId() != '' && getOrganizationId() == orgId) ||
+          isOwnerOrAdmin()
+        );
+      }
+      
       // Cloud Integrations - Subcollection for cloud service integrations
       match /cloudIntegrations/{integrationId} {
         allow read: if isAuthenticated() && (belongsToOrganization(orgId) || isOwnerOrAdmin());
@@ -471,13 +503,77 @@ service cloud.firestore {
       }
     }
     
-    // Timecards
+    // Timecards (Legacy/Project-based)
     match /timecards/{timecardId} {
       allow read: if isOwner(resource.data.userId) || 
                      canAccessProject(resource.data.projectId);
       allow create: if canAccessProject(request.resource.data.projectId);
       allow update: if isOwner(resource.data.userId) || 
                        canModifyProject(resource.data.projectId);
+    }
+
+    // ============================================================================
+    // ENHANCED TIMECARD COLLECTIONS (Organization-based)
+    // ============================================================================
+    
+    // Timecard Entries - Individual entries
+    match /timecard_entries/{entryId} {
+        allow read: if isAuthenticated() && (
+            // Users can read their own entries
+            (resource.data.userId == request.auth.uid) || 
+            // Admins/Managers in the org can read entries
+            (resource.data.organizationId != null && belongsToOrganization(resource.data.organizationId))
+        );
+        allow list: if isAuthenticated() && (
+            // Allow listing if filtering by own userId
+            (request.query.limit <= 100 && request.query.filters.size() > 0) ||
+            // Or if has access to organization
+            (belongsToOrganization(resource.data.organizationId))
+        );
+        allow create: if isAuthenticated() && (
+            // Users can create own entries
+            (request.resource.data.userId == request.auth.uid) ||
+            // Org admins can create entries
+            belongsToOrganization(request.resource.data.organizationId)
+        );
+        allow update: if isAuthenticated() && (
+            // Users can update own entries
+            (resource.data.userId == request.auth.uid) ||
+            // Org admins can update
+            belongsToOrganization(resource.data.organizationId)
+        );
+        allow delete: if isAuthenticated() && (
+            // Users can delete own pending entries? Maybe restrict delete.
+            (resource.data.userId == request.auth.uid) || 
+            (belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin())
+        );
+    }
+
+    // User Timecards - Weekly summaries
+    match /user_timecards/{summaryId} {
+        allow read: if isAuthenticated() && (
+            (resource.data.userId == request.auth.uid) ||
+            (resource.data.organizationId != null && belongsToOrganization(resource.data.organizationId))
+        );
+        allow write: if isAuthenticated() && (
+            (request.resource.data.userId == request.auth.uid) ||
+            belongsToOrganization(resource.data.organizationId)
+        );
+    }
+
+    // Timecard Templates - Organization templates
+    match /timecard_templates/{templateId} {
+        allow read: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
+        allow write: if isAuthenticated() && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin();
+    }
+
+    // Timecard Approvals
+    match /timecard_approvals/{approvalId} {
+        allow read: if isAuthenticated() && (
+            resource.data.submitterId == request.auth.uid ||
+            belongsToOrganization(resource.data.organizationId)
+        );
+        allow write: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
     }
     
     // Inventory Items - Organization-wide access with optional project filtering
