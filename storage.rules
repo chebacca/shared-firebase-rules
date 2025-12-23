@@ -165,6 +165,12 @@ service firebase.storage {
       allow read: if isAuthenticated() && request.auth.uid == userId;
       allow write: if isAuthenticated() && request.auth.uid == userId && isValidFileSize() && isValidFileType();
     }
+
+    // AI Agent Attachments
+    match /attachments/{userId}/{fileName} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow write: if isAuthenticated() && request.auth.uid == userId && isValidFileSize();
+    }
     
     // ============================================================================
     // ORGANIZATION-SPECIFIC FILES

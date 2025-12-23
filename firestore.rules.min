@@ -373,19 +373,11 @@ service cloud.firestore {
       allow create: if isAuthenticated() && (
         belongsToOrganization(request.resource.data.organizationId) ||
         isOwnerOrAdmin()
-      ) && (
-        // ENFORCE: Sessions must have a projectId
-        request.resource.data.projectId is string &&
-        request.resource.data.projectId.size() > 0
       );
       allow update: if isAuthenticated() && (
         belongsToOrganization(resource.data.organizationId) ||
         canModifyProject(resource.data.projectId) ||
         isOwnerOrAdmin()
-      ) && (
-        // ENFORCE: Cannot remove projectId
-        request.resource.data.projectId is string &&
-        request.resource.data.projectId.size() > 0
       );
       allow delete: if isAuthenticated() && (
         belongsToOrganization(resource.data.organizationId) ||
@@ -455,40 +447,10 @@ service cloud.firestore {
                        canModifyProject(resource.data.projectId);
     }
     match /notifications/{notificationId} {
-      // Read: User can read their own notifications, or team members in same organization
-      allow read: if isAuthenticated() && (
-        isOwner(resource.data.userId) || 
-        isOwnerOrAdmin() ||
-        (resource.data.organizationId != null && 
-         belongsToOrganization(resource.data.organizationId))
-      );
-      
-      // Create: Anyone authenticated can create notifications (system can create for users)
-      allow create: if isAuthenticated() && (
-        request.resource.data.userId != null &&
-        request.resource.data.organizationId != null &&
-        request.resource.data.category != null &&
-        request.resource.data.title != null &&
-        request.resource.data.message != null
-      );
-      
-      // Update: User can update their own notifications, or admins
-      allow update: if isAuthenticated() && (
-        isOwner(resource.data.userId) || 
-        isOwnerOrAdmin() ||
-        (resource.data.organizationId != null && 
-         belongsToOrganization(resource.data.organizationId) &&
-         hasAnyOrgRole(['owner', 'admin']))
-      );
-      
-      // Delete: User can delete their own notifications, or admins
-      allow delete: if isAuthenticated() && (
-        isOwner(resource.data.userId) || 
-        isOwnerOrAdmin() ||
-        (resource.data.organizationId != null && 
-         belongsToOrganization(resource.data.organizationId) &&
-         hasAnyOrgRole(['owner', 'admin']))
-      );
+      allow read: if isOwner(resource.data.userId) || isOwnerOrAdmin();
+      allow create: if true; 
+      allow update: if isOwner(resource.data.userId) || isOwnerOrAdmin();
+      allow delete: if isOwner(resource.data.userId) || isOwnerOrAdmin();
     }
     match /notificationPreferences/{userId} {
       allow read, write: if isAuthenticated() && request.auth.uid == userId;
@@ -3095,16 +3057,8 @@ service cloud.firestore {
     }
     match /workflowInstances/{instanceId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && (
-        // ENFORCE: Workflows must have a sessionId
-        request.resource.data.sessionId is string &&
-        request.resource.data.sessionId.size() > 0
-      );
-      allow update: if isAuthenticated() && (
-        // ENFORCE: Cannot remove sessionId
-        request.resource.data.sessionId is string &&
-        request.resource.data.sessionId.size() > 0
-      );
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
       allow delete: if isAuthenticated();
     }
     match /{path=**}/workflowInstances/{instanceId} {
@@ -3119,19 +3073,11 @@ service cloud.firestore {
       allow create: if isAuthenticated() && (
         belongsToOrganization(request.resource.data.organizationId) ||
         getOrganizationId() == 'standalone'
-      ) && (
-        // ENFORCE: Steps must have a workflowInstanceId
-        request.resource.data.workflowInstanceId is string &&
-        request.resource.data.workflowInstanceId.size() > 0
       );
       allow update: if isAuthenticated() && (
         belongsToOrganization(resource.data.organizationId) ||
         getOrganizationId() == 'standalone' ||
         isOwnerOrAdmin()
-      ) && (
-        // ENFORCE: Cannot remove workflowInstanceId
-        request.resource.data.workflowInstanceId is string &&
-        request.resource.data.workflowInstanceId.size() > 0
       );
       allow delete: if isAuthenticated() && (
         belongsToOrganization(resource.data.organizationId) ||
@@ -4759,4 +4705,3 @@ service cloud.firestore {
     }
   }
 } 
-// Random: FE5EFFC5-282C-442B-AD63-D416A54480B9
