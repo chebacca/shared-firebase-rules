@@ -182,6 +182,36 @@ service firebase.storage {
       allow write: if isAuthenticated() && belongsToOrganization(orgId) && isOwnerOrAdmin() && isValidFileSize() && isValidFileType();
     }
     
+    // Organization map layout images
+    // Path: organizations/{orgId}/maps/layouts/{layoutId}/{fileName}
+    match /organizations/{orgId}/maps/layouts/{layoutId}/{fileName} {
+      allow read: if isAuthenticated() && belongsToOrganization(orgId);
+      allow write: if isAuthenticated() 
+                   && belongsToOrganization(orgId)
+                   && request.resource.size <= 10 * 1024 * 1024 // 10MB limit for map images
+                   && (request.resource.contentType.matches('image/.*') ||
+                       request.resource.contentType.matches('application/octet-stream'));
+      allow delete: if isAuthenticated() && belongsToOrganization(orgId);
+    }
+    
+    // Organization project-scoped map layout images
+    // Path: organizations/{orgId}/projects/{projectId}/maps/layouts/{layoutId}/{fileName}
+    match /organizations/{orgId}/projects/{projectId}/maps/layouts/{layoutId}/{fileName} {
+      allow read: if isAuthenticated() && (
+        belongsToOrganization(orgId) ||
+        canAccessProject(projectId)
+      );
+      allow write: if isAuthenticated() 
+                   && (belongsToOrganization(orgId) || canModifyProject(projectId))
+                   && request.resource.size <= 10 * 1024 * 1024 // 10MB limit for map images
+                   && (request.resource.contentType.matches('image/.*') ||
+                       request.resource.contentType.matches('application/octet-stream'));
+      allow delete: if isAuthenticated() && (
+        belongsToOrganization(orgId) ||
+        canModifyProject(projectId)
+      );
+    }
+    
     // ============================================================================
     // PROJECT-SPECIFIC FILES
     // ============================================================================

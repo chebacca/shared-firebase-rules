@@ -185,32 +185,71 @@ service cloud.firestore {
       
       // Dropbox Indexed Files - Files indexed from Dropbox
       match /dropboxIndexedFiles/{fileId} {
+        // Allow list queries if user belongs to organization (query filter ensures scoping)
+        allow list: if isAuthenticated() && (
+          belongsToOrganization(orgId) ||
+          isOwnerOrAdmin() ||
+          (getOrganizationId() != '' && getOrganizationId() == orgId)
+        );
+        // Allow document reads
         allow read: if isAuthenticated() && (
           belongsToOrganization(orgId) ||
           isOwnerOrAdmin() ||
-          (resource.data != null && resource.data.organizationId != null)
+          (resource.data != null && resource.data.organizationId != null && 
+           belongsToOrganization(resource.data.organizationId))
         );
         allow write: if isAuthenticated() && belongsToOrganization(orgId);
+        allow create: if isAuthenticated() && (
+          belongsToOrganization(orgId) ||
+          (request.resource.data.organizationId != null && 
+           belongsToOrganization(request.resource.data.organizationId))
+        );
       }
       
       // Box Indexed Files - Files indexed from Box
       match /boxIndexedFiles/{fileId} {
+        // Allow list queries if user belongs to organization (query filter ensures scoping)
+        allow list: if isAuthenticated() && (
+          belongsToOrganization(orgId) ||
+          isOwnerOrAdmin() ||
+          (getOrganizationId() != '' && getOrganizationId() == orgId)
+        );
+        // Allow document reads
         allow read: if isAuthenticated() && (
           belongsToOrganization(orgId) ||
           isOwnerOrAdmin() ||
-          (resource.data != null && resource.data.organizationId != null)
+          (resource.data != null && resource.data.organizationId != null && 
+           belongsToOrganization(resource.data.organizationId))
         );
         allow write: if isAuthenticated() && belongsToOrganization(orgId);
+        allow create: if isAuthenticated() && (
+          belongsToOrganization(orgId) ||
+          (request.resource.data.organizationId != null && 
+           belongsToOrganization(request.resource.data.organizationId))
+        );
       }
       
       // Indexed Files - Google Drive indexed files
       match /indexedFiles/{fileId} {
+        // Allow list queries if user belongs to organization (query filter ensures scoping)
+        allow list: if isAuthenticated() && (
+          belongsToOrganization(orgId) ||
+          isOwnerOrAdmin() ||
+          (getOrganizationId() != '' && getOrganizationId() == orgId)
+        );
+        // Allow document reads
         allow read: if isAuthenticated() && (
           belongsToOrganization(orgId) ||
           isOwnerOrAdmin() ||
-          (resource.data != null && resource.data.organizationId != null)
+          (resource.data != null && resource.data.organizationId != null && 
+           belongsToOrganization(resource.data.organizationId))
         );
         allow write: if isAuthenticated() && belongsToOrganization(orgId);
+        allow create: if isAuthenticated() && (
+          belongsToOrganization(orgId) ||
+          (request.resource.data.organizationId != null && 
+           belongsToOrganization(request.resource.data.organizationId))
+        );
       }
       
       // Call Sheet Projects - Projects from Call Sheet app
@@ -518,62 +557,109 @@ service cloud.firestore {
     
     // Timecard Entries - Individual entries
     match /timecard_entries/{entryId} {
+        // Allow list queries if user is authenticated (query filter by userId or organizationId ensures scoping)
+        allow list: if isAuthenticated() && (
+            isOwnerOrAdmin() ||
+            (getOrganizationId() != '' && isAuthenticated())
+        );
+        // Allow document reads
         allow read: if isAuthenticated() && (
             // Users can read their own entries
             (resource.data.userId == request.auth.uid) || 
             // Admins/Managers in the org can read entries
-            (resource.data.organizationId != null && belongsToOrganization(resource.data.organizationId))
-        );
-        allow list: if isAuthenticated() && (
-            // Allow listing if filtering by own userId
-            (request.query.limit <= 100 && request.query.filters.size() > 0) ||
-            // Or if has access to organization
-            (belongsToOrganization(resource.data.organizationId))
+            (resource.data.organizationId != null && belongsToOrganization(resource.data.organizationId)) ||
+            isOwnerOrAdmin()
         );
         allow create: if isAuthenticated() && (
             // Users can create own entries
             (request.resource.data.userId == request.auth.uid) ||
             // Org admins can create entries
-            belongsToOrganization(request.resource.data.organizationId)
+            (request.resource.data.organizationId != null && belongsToOrganization(request.resource.data.organizationId)) ||
+            isOwnerOrAdmin()
         );
         allow update: if isAuthenticated() && (
             // Users can update own entries
             (resource.data.userId == request.auth.uid) ||
             // Org admins can update
-            belongsToOrganization(resource.data.organizationId)
+            (resource.data.organizationId != null && belongsToOrganization(resource.data.organizationId)) ||
+            isOwnerOrAdmin()
         );
         allow delete: if isAuthenticated() && (
             // Users can delete own pending entries? Maybe restrict delete.
             (resource.data.userId == request.auth.uid) || 
-            (belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin())
+            (resource.data.organizationId != null && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin()) ||
+            isOwnerOrAdmin()
         );
     }
 
     // User Timecards - Weekly summaries
     match /user_timecards/{summaryId} {
+        // Allow list queries if user is authenticated (query filter by userId or organizationId ensures scoping)
+        allow list: if isAuthenticated() && (
+            isOwnerOrAdmin() ||
+            (getOrganizationId() != '' && isAuthenticated())
+        );
+        // Allow document reads
         allow read: if isAuthenticated() && (
             (resource.data.userId == request.auth.uid) ||
-            (resource.data.organizationId != null && belongsToOrganization(resource.data.organizationId))
+            (resource.data.organizationId != null && belongsToOrganization(resource.data.organizationId)) ||
+            isOwnerOrAdmin()
         );
         allow write: if isAuthenticated() && (
             (request.resource.data.userId == request.auth.uid) ||
-            belongsToOrganization(resource.data.organizationId)
+            (request.resource.data.organizationId != null && belongsToOrganization(request.resource.data.organizationId)) ||
+            isOwnerOrAdmin()
+        );
+        allow create: if isAuthenticated() && (
+            (request.resource.data.userId == request.auth.uid) ||
+            (request.resource.data.organizationId != null && belongsToOrganization(request.resource.data.organizationId)) ||
+            isOwnerOrAdmin()
         );
     }
 
     // Timecard Templates - Organization templates
     match /timecard_templates/{templateId} {
-        allow read: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
-        allow write: if isAuthenticated() && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin();
+        // Allow list queries if user is authenticated (query filter by organizationId ensures scoping)
+        allow list: if isAuthenticated() && (
+            isOwnerOrAdmin() ||
+            (getOrganizationId() != '' && isAuthenticated())
+        );
+        // Allow document reads
+        allow read: if isAuthenticated() && (
+            (resource.data.organizationId != null && belongsToOrganization(resource.data.organizationId)) ||
+            isOwnerOrAdmin()
+        );
+        allow write: if isAuthenticated() && (
+            (resource.data.organizationId != null && belongsToOrganization(resource.data.organizationId) && isOwnerOrAdmin()) ||
+            isOwnerOrAdmin()
+        );
+        allow create: if isAuthenticated() && (
+            (request.resource.data.organizationId != null && belongsToOrganization(request.resource.data.organizationId) && isOwnerOrAdmin()) ||
+            isOwnerOrAdmin()
+        );
     }
 
     // Timecard Approvals
     match /timecard_approvals/{approvalId} {
+        // Allow list queries if user is authenticated (query filter by organizationId ensures scoping)
+        allow list: if isAuthenticated() && (
+            isOwnerOrAdmin() ||
+            (getOrganizationId() != '' && isAuthenticated())
+        );
+        // Allow document reads
         allow read: if isAuthenticated() && (
             resource.data.submitterId == request.auth.uid ||
-            belongsToOrganization(resource.data.organizationId)
+            (resource.data.organizationId != null && belongsToOrganization(resource.data.organizationId)) ||
+            isOwnerOrAdmin()
         );
-        allow write: if isAuthenticated() && belongsToOrganization(resource.data.organizationId);
+        allow write: if isAuthenticated() && (
+            (resource.data.organizationId != null && belongsToOrganization(resource.data.organizationId)) ||
+            isOwnerOrAdmin()
+        );
+        allow create: if isAuthenticated() && (
+            (request.resource.data.organizationId != null && belongsToOrganization(request.resource.data.organizationId)) ||
+            isOwnerOrAdmin()
+        );
     }
     
     // Inventory Items - Organization-wide access with optional project filtering
@@ -1029,9 +1115,29 @@ service cloud.firestore {
 
     // Schemas - Data structure definitions
     match /schemas/{schemaId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && isOwnerOrAdmin();
-      allow create: if isAuthenticated();
+      // Allow list queries if user is authenticated (query filter by organizationId ensures scoping)
+      allow list: if isAuthenticated() && (
+        isOwnerOrAdmin() ||
+        (getOrganizationId() != '' && isAuthenticated())
+      );
+      // Allow document reads
+      allow read: if isAuthenticated() && (
+        isOwnerOrAdmin() ||
+        (resource.data != null && resource.data.organizationId != null && 
+         belongsToOrganization(resource.data.organizationId)) ||
+        // Allow read if no organizationId (legacy schemas)
+        (resource.data != null && resource.data.organizationId == null)
+      );
+      allow write: if isAuthenticated() && (
+        isOwnerOrAdmin() ||
+        (resource.data != null && resource.data.organizationId != null && 
+         belongsToOrganization(resource.data.organizationId))
+      );
+      allow create: if isAuthenticated() && (
+        isOwnerOrAdmin() ||
+        (request.resource.data.organizationId != null && 
+         belongsToOrganization(request.resource.data.organizationId))
+      );
     }
 
     // Slack Connections - Slack workspace integrations (root collection)
@@ -1521,49 +1627,69 @@ service cloud.firestore {
     
     // Firebase Storage Folders - Folder structure for Firebase Storage
     match /firebaseStorageFolders/{folderId} {
+      // Allow list queries if user is authenticated (query filter by organizationId ensures scoping)
+      allow list: if isAuthenticated() && (
+        isOwnerOrAdmin() ||
+        (getOrganizationId() != '' && isAuthenticated())
+      );
+      // Allow document reads
       allow read: if isAuthenticated() && (
         // Allow if user has orgId claim and it matches
         (resource.data != null && resource.data.organizationId != null && 
          getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId) ||
         // Allow admins
         isOwnerOrAdmin() ||
-        // Allow any authenticated user to read documents with organizationId
-        // Query filter ensures they only see their org's data
-        (resource.data != null && resource.data.organizationId != null)
+        // Allow if document belongs to user's organization
+        (resource.data != null && resource.data.organizationId != null && 
+         belongsToOrganization(resource.data.organizationId))
       );
       allow write: if isAuthenticated() && (
         (resource.data != null && resource.data.organizationId != null && 
          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId)) ||
-        isOwnerOrAdmin()
+        isOwnerOrAdmin() ||
+        (resource.data != null && resource.data.organizationId != null && 
+         belongsToOrganization(resource.data.organizationId))
       );
       allow create: if isAuthenticated() && (
         (request.resource.data.organizationId != null && 
          (getOrganizationId() != '' && getOrganizationId() == request.resource.data.organizationId)) ||
-        isOwnerOrAdmin()
+        isOwnerOrAdmin() ||
+        (request.resource.data.organizationId != null && 
+         belongsToOrganization(request.resource.data.organizationId))
       );
     }
     
     // Firebase Storage Files - Files stored in Firebase Storage
     match /firebaseStorageFiles/{fileId} {
+      // Allow list queries if user is authenticated (query filter by organizationId ensures scoping)
+      allow list: if isAuthenticated() && (
+        isOwnerOrAdmin() ||
+        (getOrganizationId() != '' && isAuthenticated())
+      );
+      // Allow document reads
       allow read: if isAuthenticated() && (
         // Allow if user has orgId claim and it matches
         (resource.data != null && resource.data.organizationId != null && 
          getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId) ||
         // Allow admins
         isOwnerOrAdmin() ||
-        // Allow any authenticated user to read documents with organizationId
-        // Query filter ensures they only see their org's data
-        (resource.data != null && resource.data.organizationId != null)
+        // Allow if document belongs to user's organization
+        (resource.data != null && resource.data.organizationId != null && 
+         belongsToOrganization(resource.data.organizationId))
       );
       allow write: if isAuthenticated() && (
         (resource.data != null && resource.data.organizationId != null && 
          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId)) ||
-        isOwnerOrAdmin()
+        isOwnerOrAdmin() ||
+        (resource.data != null && resource.data.organizationId != null && 
+         belongsToOrganization(resource.data.organizationId))
       );
       allow create: if isAuthenticated() && (
         (request.resource.data.organizationId != null && 
          (getOrganizationId() != '' && getOrganizationId() == request.resource.data.organizationId)) ||
-        isOwnerOrAdmin()
+        isOwnerOrAdmin() ||
+        (request.resource.data.organizationId != null && 
+         belongsToOrganization(request.resource.data.organizationId))
       );
     }
 
