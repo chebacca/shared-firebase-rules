@@ -392,24 +392,6 @@ service cloud.firestore {
         isOwnerOrAdmin()
       );
     }
-    match /networkDeliveryBibles/{bibleId} {
-      allow read: if isAuthenticated() && (
-        belongsToOrganization(resource.data.organizationId) ||
-        getOrganizationId() == 'standalone'
-      );
-      allow create: if isAuthenticated() && (
-        belongsToOrganization(request.resource.data.organizationId) ||
-        getOrganizationId() == 'standalone'
-      );
-      allow update: if isAuthenticated() && (
-        belongsToOrganization(resource.data.organizationId) ||
-        getOrganizationId() == 'standalone'
-      );
-      allow delete: if isAuthenticated() && (
-        belongsToOrganization(resource.data.organizationId) ||
-        getOrganizationId() == 'standalone'
-      );
-    }
     match /timecards/{timecardId} {
       allow read: if isOwner(resource.data.userId) || 
                      canAccessProject(resource.data.projectId);
@@ -4687,6 +4669,26 @@ service cloud.firestore {
         belongsToOrganization(resource.data.organizationId) ||
         getOrganizationId() == 'standalone'
       );
+      
+      // Deliverables subcollection
+      match /deliverables/{deliverableId} {
+        allow read: if isAuthenticated() && (
+          belongsToOrganization(get(/databases/$(database)/documents/networkDeliveryBibles/$(bibleId)).data.organizationId) ||
+          getOrganizationId() == 'standalone'
+        );
+        allow create: if isAuthenticated() && (
+          belongsToOrganization(get(/databases/$(database)/documents/networkDeliveryBibles/$(bibleId)).data.organizationId) ||
+          getOrganizationId() == 'standalone'
+        );
+        allow update: if isAuthenticated() && (
+          belongsToOrganization(get(/databases/$(database)/documents/networkDeliveryBibles/$(bibleId)).data.organizationId) ||
+          getOrganizationId() == 'standalone'
+        );
+        allow delete: if isAuthenticated() && (
+          belongsToOrganization(get(/databases/$(database)/documents/networkDeliveryBibles/$(bibleId)).data.organizationId) ||
+          getOrganizationId() == 'standalone'
+        );
+      }
     }
     match /{path=**}/networkDeliveryBibles/{bibleId} {
       allow read: if isAuthenticated() && (
