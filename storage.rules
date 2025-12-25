@@ -218,6 +218,47 @@ service firebase.storage {
       );
     }
     
+    // Organization project-scoped media files (sessions, workflow, etc.)
+    // Path: organizations/{orgId}/projects/{projectId}/media/{allPaths=**}
+    // Supports: sessions/{sessionId}/workflow/{fileName}, sessions/{sessionId}/{fileName}, etc.
+    match /organizations/{orgId}/projects/{projectId}/media/{allPaths=**} {
+      allow read: if isAuthenticated() && (
+        belongsToOrganization(orgId) ||
+        canAccessProject(projectId)
+      );
+      allow write: if isAuthenticated() 
+                   && (belongsToOrganization(orgId) || canModifyProject(projectId))
+                   && request.resource.size <= 500 * 1024 * 1024 // 500MB limit for media files
+                   && (request.resource.contentType.matches('image/.*') ||
+                       request.resource.contentType.matches('video/.*') ||
+                       request.resource.contentType.matches('audio/.*') ||
+                       request.resource.contentType.matches('application/pdf') ||
+                       request.resource.contentType.matches('text/.*') ||
+                       request.resource.contentType.matches('application/json') ||
+                       request.resource.contentType.matches('application/octet-stream'));
+      allow delete: if isAuthenticated() && (
+        belongsToOrganization(orgId) ||
+        canModifyProject(projectId)
+      );
+    }
+    
+    // Organization-scoped media files (without project)
+    // Path: organizations/{orgId}/media/{allPaths=**}
+    match /organizations/{orgId}/media/{allPaths=**} {
+      allow read: if isAuthenticated() && belongsToOrganization(orgId);
+      allow write: if isAuthenticated() 
+                   && belongsToOrganization(orgId)
+                   && request.resource.size <= 500 * 1024 * 1024 // 500MB limit for media files
+                   && (request.resource.contentType.matches('image/.*') ||
+                       request.resource.contentType.matches('video/.*') ||
+                       request.resource.contentType.matches('audio/.*') ||
+                       request.resource.contentType.matches('application/pdf') ||
+                       request.resource.contentType.matches('text/.*') ||
+                       request.resource.contentType.matches('application/json') ||
+                       request.resource.contentType.matches('application/octet-stream'));
+      allow delete: if isAuthenticated() && belongsToOrganization(orgId);
+    }
+    
     // ============================================================================
     // PROJECT-SPECIFIC FILES
     // ============================================================================

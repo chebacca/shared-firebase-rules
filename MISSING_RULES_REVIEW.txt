@@ -1,0 +1,1499 @@
+// From ./_backbone_iwm/firestore.rules
+match /steps/{stepId} {
+        allow read: if isAuthenticated();
+        allow write: if isAuthenticated();
+      }
+
+// From ./_backbone_iwm/firestore.rules
+match /customSchemas/{schemaId} {
+      allow read: if isAuthenticated() && (
+        resource == null ||
+        hasOrganizationAccess(resource.data.organizationId) ||
+        isAdmin()
+      );
+      
+      allow write: if isAuthenticated() && isAdmin();
+    }
+
+// From ./_backbone_iwm/firestore.rules
+match /integrationConfigs/{configId} {
+        allow read: if isAuthenticated() && 
+                       (hasOrganizationAccess(organizationId) || isAdmin());
+        allow write: if isAuthenticated() && 
+                       (hasOrganizationAccess(organizationId) || isAdmin());
+      }
+
+// From ./_backbone_iwm/firestore.rules
+match /slackChannels/{channelId} {
+        allow read: if isAuthenticated() && 
+                       (hasOrganizationAccess(organizationId) || isAdmin());
+        allow write: if isAuthenticated() && 
+                       (hasOrganizationAccess(organizationId) || isAdmin());
+      }
+
+// From ./_backbone_iwm/firestore.rules
+match /integrations/{integrationId} {
+      allow read: if isAuthenticated() && (
+        resource == null ||
+        hasOrganizationAccess(resource.data.organizationId) ||
+        isAdmin()
+      );
+      
+      allow write: if isAuthenticated() && (
+        isAdmin() ||
+        hasOrganizationAccess(request.resource.data.organizationId)
+      );
+    }
+
+// From ./_backbone_iwm/firestore.rules
+match /team_members/{memberId} {
+      allow read: if isAuthenticated() && (
+        resource == null ||
+        hasOrganizationAccess(resource.data.organizationId) ||
+        isAdmin()
+      );
+      
+      allow write: if isAuthenticated() && isAdmin();
+    }
+
+// From ./_backbone_iwm/firestore.rules
+match /networkDeliveryDeliverables/{deliverableId} {
+      allow read: if isAuthenticated() && (
+        resource == null ||
+        hasOrganizationAccess(resource.data.organizationId) ||
+        isAdmin()
+      );
+      
+      allow write: if isAuthenticated() && (
+        hasOrganizationAccess(request.resource.data.organizationId) ||
+        isAdmin()
+      );
+    }
+
+// From ./_backbone_iwm/firestore.rules
+match /workflowDiagrams/{diagramId} {
+      allow read: if isAuthenticated() && (
+        resource == null ||
+        hasOrganizationAccess(resource.data.organizationId) ||
+        isAdmin()
+      );
+      
+      allow write: if isAuthenticated() && (
+        hasOrganizationAccess(request.resource.data.organizationId) ||
+        isAdmin()
+      );
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /user_settingss/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /custom_roles/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /workflow_diagrams/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /user_groups/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /user_group_memberships/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /stages/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /session_roles/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /production_sessions/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /production_stages/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /production_tasks/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /production_task_assignees/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /production_crew_members/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /production_workflow_correlations/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /session_assignments/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /unified_workflow_instances/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /unified_session_assignments/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /unified_session_steps/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /file_checklists/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /post_production_stages/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /post_production_tasks/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /task_assignees/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /review_sessions/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /review_notes/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /review_approvals/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /review_assignments/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /review_session_reviewers/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /review_sections/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /cut_approvals/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /cut_types/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /assets/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /r_w_a_detailss/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /rwa_documents/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /tax_lots/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /asset_performances/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /asset_price_historys/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /portfolio_performances/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /portfolio_tax_summarys/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /portfolio_allocations/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /transactions/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /invoice_items/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /invoice_payments/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /invoice_attachments/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /contact_groups/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /contact_group_memberships/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /chats/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /chat_participants/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /message_reads/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /agents/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /agent_memorys/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /agent_function_logs/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /research_sessions/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /scheduler_events/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /scheduler_event_assignments/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /scheduler_tasks/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /test_models/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /message_sessions/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /message_participants/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /session_messages/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /session_message_reads/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /inventory_items/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /schema_fields/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /network_i_p_assignments/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /inventory_historys/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /inventory_assignment_historys/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /servers/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /asset_setups/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /setup_profiles/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /setup_checklists/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /asset_setup_checklists/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /chapter_markers/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /qc_statuss/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /qc_sessions/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /qc_checklist_items/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /qc_findings/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /qc_reports/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /qc_activitys/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /session_archives/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /session_files/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /task_notifications/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /network_i_p_ranges/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /pod_assignments/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /system_assets/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /tenant_storage_usages/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /inventory_maps/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /map_datas/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /map_layouts/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /map_locations/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /command_center_layouts/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /slack_integrations/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /workflow_steps/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /workflow_dependencys/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /workflow_triggers/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /session_workflows/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /workflow_notifications/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /workflow_activitys/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /session_workflow_task_integrations/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /post_production_workflow_correlations/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /teams/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /session_stepss/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /unified_step_progressions/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /unified_step_events/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /session_elements/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /element_activitys/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /element_reviews/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /element_files/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /element_dependencys/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /media_file_tags/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /media_files/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /review_file_paths/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /media_indexs/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /media_index_items/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /production_session_to_projects/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /production_session_to_stages/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /production_session_to_users/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /production_session_archived_by_to_users/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /production_task_assigned_to_users/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /production_task_created_bys/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /production_task_last_updated_bys/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /production_task_to_roles/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /production_task_to_session_assignments/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /session_on_hold_bys/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /ebsocket_serverss/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /ebsocket_sessionss/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /automation_alert_acknowledgments/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /lifecycle_rules/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /automation_executions/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /session_phase_transitions/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /session_lifecycle_states/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /user_time_cards/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /user_timecard_assignments/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /timecard_configurations/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /user_direct_reports/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /timecard_approval_flows/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /timecard_assistance_dismissals/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /workflow_assignments/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /call_sheets/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /daily_call_sheet_records/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /daily_call_sheet_locations/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /daily_call_sheet_personnels/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /daily_call_sheet_department_call_times/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /daily_call_sheet_schedules/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /daily_call_sheet_vendors/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /daily_call_sheet_walkie_channels/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /production_departments/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /production_sub_departments/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /production_roles/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /call_sheet_locations/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /call_sheet_personnels/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /call_sheet_department_call_times/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /call_sheet_schedules/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /call_sheet_vendors/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /call_sheet_walkie_channels/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /p_b_m_projects/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /p_b_m_schedules/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /p_b_m_payscales/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /p_b_m_daily_statuss/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /brain_chat_sessions/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /brain_chat_messages/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /saved_project_paths/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /user_memory_profiles/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /conversation_patterns/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /domain_knowledges/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /relationship_anchors/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /memory_slots/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /memory_system_metricss/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /collaboration_invitations/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /project_collaboration_settingss/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /project_activitys/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /real_time_presences/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+      // User-specific data access
+      allow read, write: if request.auth.uid == resource.data.userId;
+      
+    }
+
+// From ./_backbone_licensing_website/scripts/generated-schema/firestore.rules
+match /team_members/{documentId} {
+      allow read, write: if request.auth != null;
+      
+      
+    }
+
+// From ./_backbone_cns/firestore.rules
+match /dropboxIndexedFiles/{fileId} {
+        allow read: if isAuthenticated() && (
+          belongsToOrganization(orgId) ||
+          isOwnerOrAdmin() ||
+          (resource.data != null && resource.data.organizationId != null)
+        );
+        allow write: if isAuthenticated() && belongsToOrganization(orgId);
+      }
+
+// From ./_backbone_cns/firestore.rules
+match /boxIndexedFiles/{fileId} {
+        allow read: if isAuthenticated() && (
+          belongsToOrganization(orgId) ||
+          isOwnerOrAdmin() ||
+          (resource.data != null && resource.data.organizationId != null)
+        );
+        allow write: if isAuthenticated() && belongsToOrganization(orgId);
+      }
+
+// From ./_backbone_cns/firestore.rules
+match /indexedFiles/{fileId} {
+        allow read: if isAuthenticated() && (
+          belongsToOrganization(orgId) ||
+          isOwnerOrAdmin() ||
+          (resource.data != null && resource.data.organizationId != null)
+        );
+        allow write: if isAuthenticated() && belongsToOrganization(orgId);
+      }
+
+// From ./_backbone_cns/firestore.rules
+match /slackChannels/{channelId} {
+        allow read: if isAuthenticated() && (
+          // Allow if user has orgId claim and it matches parent org
+          (getOrganizationId() != '' && getOrganizationId() == orgId) ||
+          // Allow admins
+          isOwnerOrAdmin() ||
+          // Allow any authenticated user to read (parent orgId in path ensures scoping)
+          isAuthenticated()
+        );
+        allow write: if isAuthenticated() && (
+          (getOrganizationId() != '' && getOrganizationId() == orgId) ||
+          isOwnerOrAdmin()
+        );
+      }
+
+// From ./_backbone_cns/firestore.rules
+match /integrationConfigs/{configId} {
+        allow read: if isAuthenticated() && (
+          // Allow if user has orgId claim and it matches parent org
+          (getOrganizationId() != '' && getOrganizationId() == orgId) ||
+          // Allow admins
+          isOwnerOrAdmin() ||
+          // Allow any authenticated user to read (parent orgId in path ensures scoping)
+          isAuthenticated()
+        );
+        allow write: if isAuthenticated() && (
+          (getOrganizationId() != '' && getOrganizationId() == orgId) ||
+          isOwnerOrAdmin()
+        );
+      }
+
+// From ./_backbone_cns/firestore.rules
+match /timecard_assignments/{assignmentId} {
+      allow read: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (belongsToOrganization(resource.data.organizationId) ||
+          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId))) ||
+        isOwnerOrAdmin() ||
+        (resource.data != null && resource.data.organizationId != null)
+      );
+      allow create: if isAuthenticated() && (
+        (request.resource.data.organizationId != null && 
+         (belongsToOrganization(request.resource.data.organizationId) || 
+          (getOrganizationId() != '' && getOrganizationId() == request.resource.data.organizationId))) ||
+        isOwnerOrAdmin()
+      );
+      allow update: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (belongsToOrganization(resource.data.organizationId) ||
+          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId))) ||
+        isOwnerOrAdmin()
+      );
+      allow delete: if isAuthenticated() && (
+        (resource.data != null && resource.data.organizationId != null && 
+         (belongsToOrganization(resource.data.organizationId) ||
+          (getOrganizationId() != '' && getOrganizationId() == resource.data.organizationId))) ||
+        isOwnerOrAdmin()
+      );
+    }
+
+// From ./_backbone_timecard_management_system/firestore.rules
+match /timecardApprovals/{docId} {
+      // Allow read/write for authenticated users in the same organization
+      allow read, write: if isAuthenticated() && 
+                            belongsToOrganizationWithDocCheck(resource.data.organizationId);
+    }

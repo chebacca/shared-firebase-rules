@@ -4,9 +4,7 @@ service cloud.firestore {
     match /{document=**} {
       allow read, write: if request.auth != null;
     }
-    match /{document=**} {
-      allow read, write: if request.auth != null;
-    }
+    
     function isAuthenticated() {
       return request.auth != null;
     }
@@ -4760,5 +4758,372 @@ service cloud.firestore {
       allow read, write: if false;
     }
   }
-} 
-// Random: FE5EFFC5-282C-442B-AD63-D416A54480B9
+
+    // AUTO-SYNCED COLLECTIONS
+    match /steps/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/steps/{docId} { allow read: if request.auth != null; }
+    match /customSchemas/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/customSchemas/{docId} { allow read: if request.auth != null; }
+    match /integrationConfigs/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/integrationConfigs/{docId} { allow read: if request.auth != null; }
+    match /slackChannels/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/slackChannels/{docId} { allow read: if request.auth != null; }
+    match /integrations/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/integrations/{docId} { allow read: if request.auth != null; }
+    match /team_members/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/team_members/{docId} { allow read: if request.auth != null; }
+    match /networkDeliveryDeliverables/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/networkDeliveryDeliverables/{docId} { allow read: if request.auth != null; }
+    match /workflowDiagrams/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/workflowDiagrams/{docId} { allow read: if request.auth != null; }
+    match /user_settingss/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/user_settingss/{docId} { allow read: if request.auth != null; }
+    match /custom_roles/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/custom_roles/{docId} { allow read: if request.auth != null; }
+    match /workflow_diagrams/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/workflow_diagrams/{docId} { allow read: if request.auth != null; }
+    match /user_groups/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/user_groups/{docId} { allow read: if request.auth != null; }
+    match /user_group_memberships/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/user_group_memberships/{docId} { allow read: if request.auth != null; }
+    match /stages/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/stages/{docId} { allow read: if request.auth != null; }
+    match /session_roles/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/session_roles/{docId} { allow read: if request.auth != null; }
+    match /production_sessions/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/production_sessions/{docId} { allow read: if request.auth != null; }
+    match /production_stages/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/production_stages/{docId} { allow read: if request.auth != null; }
+    match /production_tasks/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/production_tasks/{docId} { allow read: if request.auth != null; }
+    match /production_task_assignees/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/production_task_assignees/{docId} { allow read: if request.auth != null; }
+    match /production_crew_members/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/production_crew_members/{docId} { allow read: if request.auth != null; }
+    match /production_workflow_correlations/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/production_workflow_correlations/{docId} { allow read: if request.auth != null; }
+    match /session_assignments/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/session_assignments/{docId} { allow read: if request.auth != null; }
+    match /unified_workflow_instances/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/unified_workflow_instances/{docId} { allow read: if request.auth != null; }
+    match /unified_session_assignments/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/unified_session_assignments/{docId} { allow read: if request.auth != null; }
+    match /unified_session_steps/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/unified_session_steps/{docId} { allow read: if request.auth != null; }
+    match /file_checklists/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/file_checklists/{docId} { allow read: if request.auth != null; }
+    match /post_production_stages/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/post_production_stages/{docId} { allow read: if request.auth != null; }
+    match /post_production_tasks/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/post_production_tasks/{docId} { allow read: if request.auth != null; }
+    match /task_assignees/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/task_assignees/{docId} { allow read: if request.auth != null; }
+    match /review_sessions/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/review_sessions/{docId} { allow read: if request.auth != null; }
+    match /review_notes/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/review_notes/{docId} { allow read: if request.auth != null; }
+    match /review_approvals/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/review_approvals/{docId} { allow read: if request.auth != null; }
+    match /review_assignments/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/review_assignments/{docId} { allow read: if request.auth != null; }
+    match /review_session_reviewers/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/review_session_reviewers/{docId} { allow read: if request.auth != null; }
+    match /review_sections/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/review_sections/{docId} { allow read: if request.auth != null; }
+    match /cut_approvals/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/cut_approvals/{docId} { allow read: if request.auth != null; }
+    match /cut_types/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/cut_types/{docId} { allow read: if request.auth != null; }
+    match /assets/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/assets/{docId} { allow read: if request.auth != null; }
+    match /r_w_a_detailss/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/r_w_a_detailss/{docId} { allow read: if request.auth != null; }
+    match /rwa_documents/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/rwa_documents/{docId} { allow read: if request.auth != null; }
+    match /tax_lots/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/tax_lots/{docId} { allow read: if request.auth != null; }
+    match /asset_performances/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/asset_performances/{docId} { allow read: if request.auth != null; }
+    match /asset_price_historys/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/asset_price_historys/{docId} { allow read: if request.auth != null; }
+    match /portfolio_performances/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/portfolio_performances/{docId} { allow read: if request.auth != null; }
+    match /portfolio_tax_summarys/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/portfolio_tax_summarys/{docId} { allow read: if request.auth != null; }
+    match /portfolio_allocations/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/portfolio_allocations/{docId} { allow read: if request.auth != null; }
+    match /transactions/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/transactions/{docId} { allow read: if request.auth != null; }
+    match /invoice_items/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/invoice_items/{docId} { allow read: if request.auth != null; }
+    match /invoice_payments/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/invoice_payments/{docId} { allow read: if request.auth != null; }
+    match /invoice_attachments/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/invoice_attachments/{docId} { allow read: if request.auth != null; }
+    match /contact_groups/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/contact_groups/{docId} { allow read: if request.auth != null; }
+    match /contact_group_memberships/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/contact_group_memberships/{docId} { allow read: if request.auth != null; }
+    match /chats/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/chats/{docId} { allow read: if request.auth != null; }
+    match /chat_participants/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/chat_participants/{docId} { allow read: if request.auth != null; }
+    match /message_reads/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/message_reads/{docId} { allow read: if request.auth != null; }
+    match /agents/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/agents/{docId} { allow read: if request.auth != null; }
+    match /agent_memorys/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/agent_memorys/{docId} { allow read: if request.auth != null; }
+    match /agent_function_logs/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/agent_function_logs/{docId} { allow read: if request.auth != null; }
+    match /research_sessions/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/research_sessions/{docId} { allow read: if request.auth != null; }
+    match /scheduler_events/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/scheduler_events/{docId} { allow read: if request.auth != null; }
+    match /scheduler_event_assignments/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/scheduler_event_assignments/{docId} { allow read: if request.auth != null; }
+    match /scheduler_tasks/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/scheduler_tasks/{docId} { allow read: if request.auth != null; }
+    match /test_models/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/test_models/{docId} { allow read: if request.auth != null; }
+    match /message_sessions/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/message_sessions/{docId} { allow read: if request.auth != null; }
+    match /message_participants/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/message_participants/{docId} { allow read: if request.auth != null; }
+    match /session_messages/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/session_messages/{docId} { allow read: if request.auth != null; }
+    match /session_message_reads/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/session_message_reads/{docId} { allow read: if request.auth != null; }
+    match /inventory_items/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/inventory_items/{docId} { allow read: if request.auth != null; }
+    match /schema_fields/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/schema_fields/{docId} { allow read: if request.auth != null; }
+    match /network_i_p_assignments/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/network_i_p_assignments/{docId} { allow read: if request.auth != null; }
+    match /inventory_historys/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/inventory_historys/{docId} { allow read: if request.auth != null; }
+    match /inventory_assignment_historys/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/inventory_assignment_historys/{docId} { allow read: if request.auth != null; }
+    match /servers/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/servers/{docId} { allow read: if request.auth != null; }
+    match /asset_setups/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/asset_setups/{docId} { allow read: if request.auth != null; }
+    match /setup_profiles/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/setup_profiles/{docId} { allow read: if request.auth != null; }
+    match /setup_checklists/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/setup_checklists/{docId} { allow read: if request.auth != null; }
+    match /asset_setup_checklists/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/asset_setup_checklists/{docId} { allow read: if request.auth != null; }
+    match /chapter_markers/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/chapter_markers/{docId} { allow read: if request.auth != null; }
+    match /qc_statuss/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/qc_statuss/{docId} { allow read: if request.auth != null; }
+    match /qc_sessions/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/qc_sessions/{docId} { allow read: if request.auth != null; }
+    match /qc_checklist_items/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/qc_checklist_items/{docId} { allow read: if request.auth != null; }
+    match /qc_findings/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/qc_findings/{docId} { allow read: if request.auth != null; }
+    match /qc_reports/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/qc_reports/{docId} { allow read: if request.auth != null; }
+    match /qc_activitys/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/qc_activitys/{docId} { allow read: if request.auth != null; }
+    match /session_archives/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/session_archives/{docId} { allow read: if request.auth != null; }
+    match /session_files/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/session_files/{docId} { allow read: if request.auth != null; }
+    match /task_notifications/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/task_notifications/{docId} { allow read: if request.auth != null; }
+    match /network_i_p_ranges/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/network_i_p_ranges/{docId} { allow read: if request.auth != null; }
+    match /pod_assignments/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/pod_assignments/{docId} { allow read: if request.auth != null; }
+    match /system_assets/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/system_assets/{docId} { allow read: if request.auth != null; }
+    match /tenant_storage_usages/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/tenant_storage_usages/{docId} { allow read: if request.auth != null; }
+    match /inventory_maps/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/inventory_maps/{docId} { allow read: if request.auth != null; }
+    match /map_datas/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/map_datas/{docId} { allow read: if request.auth != null; }
+    match /map_layouts/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/map_layouts/{docId} { allow read: if request.auth != null; }
+    match /map_locations/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/map_locations/{docId} { allow read: if request.auth != null; }
+    match /command_center_layouts/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/command_center_layouts/{docId} { allow read: if request.auth != null; }
+    match /slack_integrations/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/slack_integrations/{docId} { allow read: if request.auth != null; }
+    match /workflow_steps/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/workflow_steps/{docId} { allow read: if request.auth != null; }
+    match /workflow_dependencys/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/workflow_dependencys/{docId} { allow read: if request.auth != null; }
+    match /workflow_triggers/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/workflow_triggers/{docId} { allow read: if request.auth != null; }
+    match /session_workflows/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/session_workflows/{docId} { allow read: if request.auth != null; }
+    match /workflow_notifications/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/workflow_notifications/{docId} { allow read: if request.auth != null; }
+    match /workflow_activitys/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/workflow_activitys/{docId} { allow read: if request.auth != null; }
+    match /session_workflow_task_integrations/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/session_workflow_task_integrations/{docId} { allow read: if request.auth != null; }
+    match /post_production_workflow_correlations/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/post_production_workflow_correlations/{docId} { allow read: if request.auth != null; }
+    match /teams/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/teams/{docId} { allow read: if request.auth != null; }
+    match /session_stepss/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/session_stepss/{docId} { allow read: if request.auth != null; }
+    match /unified_step_progressions/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/unified_step_progressions/{docId} { allow read: if request.auth != null; }
+    match /unified_step_events/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/unified_step_events/{docId} { allow read: if request.auth != null; }
+    match /session_elements/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/session_elements/{docId} { allow read: if request.auth != null; }
+    match /element_activitys/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/element_activitys/{docId} { allow read: if request.auth != null; }
+    match /element_reviews/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/element_reviews/{docId} { allow read: if request.auth != null; }
+    match /element_files/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/element_files/{docId} { allow read: if request.auth != null; }
+    match /element_dependencys/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/element_dependencys/{docId} { allow read: if request.auth != null; }
+    match /media_file_tags/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/media_file_tags/{docId} { allow read: if request.auth != null; }
+    match /media_files/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/media_files/{docId} { allow read: if request.auth != null; }
+    match /review_file_paths/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/review_file_paths/{docId} { allow read: if request.auth != null; }
+    match /media_indexs/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/media_indexs/{docId} { allow read: if request.auth != null; }
+    match /media_index_items/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/media_index_items/{docId} { allow read: if request.auth != null; }
+    match /production_session_to_projects/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/production_session_to_projects/{docId} { allow read: if request.auth != null; }
+    match /production_session_to_stages/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/production_session_to_stages/{docId} { allow read: if request.auth != null; }
+    match /production_session_to_users/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/production_session_to_users/{docId} { allow read: if request.auth != null; }
+    match /production_session_archived_by_to_users/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/production_session_archived_by_to_users/{docId} { allow read: if request.auth != null; }
+    match /production_task_assigned_to_users/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/production_task_assigned_to_users/{docId} { allow read: if request.auth != null; }
+    match /production_task_created_bys/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/production_task_created_bys/{docId} { allow read: if request.auth != null; }
+    match /production_task_last_updated_bys/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/production_task_last_updated_bys/{docId} { allow read: if request.auth != null; }
+    match /production_task_to_roles/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/production_task_to_roles/{docId} { allow read: if request.auth != null; }
+    match /production_task_to_session_assignments/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/production_task_to_session_assignments/{docId} { allow read: if request.auth != null; }
+    match /session_on_hold_bys/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/session_on_hold_bys/{docId} { allow read: if request.auth != null; }
+    match /ebsocket_serverss/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/ebsocket_serverss/{docId} { allow read: if request.auth != null; }
+    match /ebsocket_sessionss/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/ebsocket_sessionss/{docId} { allow read: if request.auth != null; }
+    match /automation_alert_acknowledgments/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/automation_alert_acknowledgments/{docId} { allow read: if request.auth != null; }
+    match /lifecycle_rules/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/lifecycle_rules/{docId} { allow read: if request.auth != null; }
+    match /automation_executions/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/automation_executions/{docId} { allow read: if request.auth != null; }
+    match /session_phase_transitions/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/session_phase_transitions/{docId} { allow read: if request.auth != null; }
+    match /session_lifecycle_states/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/session_lifecycle_states/{docId} { allow read: if request.auth != null; }
+    match /user_time_cards/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/user_time_cards/{docId} { allow read: if request.auth != null; }
+    match /user_timecard_assignments/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/user_timecard_assignments/{docId} { allow read: if request.auth != null; }
+    match /timecard_configurations/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/timecard_configurations/{docId} { allow read: if request.auth != null; }
+    match /user_direct_reports/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/user_direct_reports/{docId} { allow read: if request.auth != null; }
+    match /timecard_approval_flows/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/timecard_approval_flows/{docId} { allow read: if request.auth != null; }
+    match /timecard_assistance_dismissals/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/timecard_assistance_dismissals/{docId} { allow read: if request.auth != null; }
+    match /workflow_assignments/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/workflow_assignments/{docId} { allow read: if request.auth != null; }
+    match /call_sheets/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/call_sheets/{docId} { allow read: if request.auth != null; }
+    match /daily_call_sheet_records/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/daily_call_sheet_records/{docId} { allow read: if request.auth != null; }
+    match /daily_call_sheet_locations/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/daily_call_sheet_locations/{docId} { allow read: if request.auth != null; }
+    match /daily_call_sheet_personnels/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/daily_call_sheet_personnels/{docId} { allow read: if request.auth != null; }
+    match /daily_call_sheet_department_call_times/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/daily_call_sheet_department_call_times/{docId} { allow read: if request.auth != null; }
+    match /daily_call_sheet_schedules/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/daily_call_sheet_schedules/{docId} { allow read: if request.auth != null; }
+    match /daily_call_sheet_vendors/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/daily_call_sheet_vendors/{docId} { allow read: if request.auth != null; }
+    match /daily_call_sheet_walkie_channels/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/daily_call_sheet_walkie_channels/{docId} { allow read: if request.auth != null; }
+    match /production_departments/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/production_departments/{docId} { allow read: if request.auth != null; }
+    match /production_sub_departments/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/production_sub_departments/{docId} { allow read: if request.auth != null; }
+    match /production_roles/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/production_roles/{docId} { allow read: if request.auth != null; }
+    match /call_sheet_locations/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/call_sheet_locations/{docId} { allow read: if request.auth != null; }
+    match /call_sheet_personnels/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/call_sheet_personnels/{docId} { allow read: if request.auth != null; }
+    match /call_sheet_department_call_times/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/call_sheet_department_call_times/{docId} { allow read: if request.auth != null; }
+    match /call_sheet_schedules/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/call_sheet_schedules/{docId} { allow read: if request.auth != null; }
+    match /call_sheet_vendors/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/call_sheet_vendors/{docId} { allow read: if request.auth != null; }
+    match /call_sheet_walkie_channels/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/call_sheet_walkie_channels/{docId} { allow read: if request.auth != null; }
+    match /p_b_m_projects/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/p_b_m_projects/{docId} { allow read: if request.auth != null; }
+    match /p_b_m_schedules/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/p_b_m_schedules/{docId} { allow read: if request.auth != null; }
+    match /p_b_m_payscales/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/p_b_m_payscales/{docId} { allow read: if request.auth != null; }
+    match /p_b_m_daily_statuss/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/p_b_m_daily_statuss/{docId} { allow read: if request.auth != null; }
+    match /brain_chat_sessions/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/brain_chat_sessions/{docId} { allow read: if request.auth != null; }
+    match /brain_chat_messages/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/brain_chat_messages/{docId} { allow read: if request.auth != null; }
+    match /saved_project_paths/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/saved_project_paths/{docId} { allow read: if request.auth != null; }
+    match /user_memory_profiles/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/user_memory_profiles/{docId} { allow read: if request.auth != null; }
+    match /conversation_patterns/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/conversation_patterns/{docId} { allow read: if request.auth != null; }
+    match /domain_knowledges/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/domain_knowledges/{docId} { allow read: if request.auth != null; }
+    match /relationship_anchors/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/relationship_anchors/{docId} { allow read: if request.auth != null; }
+    match /memory_slots/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/memory_slots/{docId} { allow read: if request.auth != null; }
+    match /memory_system_metricss/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/memory_system_metricss/{docId} { allow read: if request.auth != null; }
+    match /collaboration_invitations/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/collaboration_invitations/{docId} { allow read: if request.auth != null; }
+    match /project_collaboration_settingss/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/project_collaboration_settingss/{docId} { allow read: if request.auth != null; }
+    match /project_activitys/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/project_activitys/{docId} { allow read: if request.auth != null; }
+    match /real_time_presences/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/real_time_presences/{docId} { allow read: if request.auth != null; }
+    match /dropboxIndexedFiles/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/dropboxIndexedFiles/{docId} { allow read: if request.auth != null; }
+    match /boxIndexedFiles/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/boxIndexedFiles/{docId} { allow read: if request.auth != null; }
+    match /indexedFiles/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/indexedFiles/{docId} { allow read: if request.auth != null; }
+    match /timecard_assignments/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/timecard_assignments/{docId} { allow read: if request.auth != null; }
+    match /timecardApprovals/{docId} { allow read, write: if request.auth != null; }
+    match /{path=**}/timecardApprovals/{docId} { allow read: if request.auth != null; }
+
+  }
+}
