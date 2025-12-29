@@ -729,6 +729,9 @@ service cloud.firestore {
         && request.resource.data.organizationId != null
         && belongsToOrganization(request.resource.data.organizationId);
     }
+    match /guest_profiles/{id} {
+      allow read: if true; // Allow unauthenticated read for guest claiming
+    }
     match /userSessions/{userId} {
       allow read: if isAuthenticated() && request.auth.uid == userId;
       allow write: if isAuthenticated() && request.auth.uid == userId;
