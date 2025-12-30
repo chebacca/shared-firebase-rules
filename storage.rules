@@ -48,9 +48,17 @@ service firebase.storage {
                // Check secondary organizationId
                (getUserClaims().get('secondaryOrganizationId', '') != '' && 
                 getUserClaims().get('secondaryOrganizationId', '') == organizationId) ||
+               // Check allowedOrganizations array (for multi-tenant users)
+               (getUserClaims().get('allowedOrganizations', []).hasAny([organizationId])) ||
                // For admin users, allow access to any organization (more permissive)
                // This helps with cases where organizationId might not match exactly
-               isOwnerOrAdmin()
+               isOwnerOrAdmin() ||
+               // Special case: admin.clipshow@example.com should have access to clip-show-pro-productions
+               (request.auth.token.email == 'admin.clipshow@example.com' && 
+                organizationId == 'clip-show-pro-productions') ||
+               // Special case: enterprise.user@enterprisemedia.com should have access to enterprise organizations
+               (request.auth.token.email == 'enterprise.user@enterprisemedia.com' && 
+                (organizationId == 'enterprise-media-org' || organizationId == 'enterprise-org-001'))
              ));
     }
     
@@ -552,6 +560,27 @@ service firebase.storage {
       allow write: if isAuthenticated() 
                    && belongsToOrganization(organizationId)
                    && request.resource.size <= 500 * 1024 * 1024; // 500MB limit
+      
+      // Allow delete for authenticated users in the organization
+      allow delete: if isAuthenticated() && belongsToOrganization(organizationId);
+    }
+    
+    // ============================================================================
+    // ORGANIZATION-ROOT FILES (Direct organization ID path)
+    // ============================================================================
+    
+    // Files stored directly under organization ID (e.g., {organizationId}/{filePath})
+    // This handles files uploaded to Firebase Storage without the "organizations/" prefix
+    // Common for review media, indexed files, and other organization-scoped content
+    match /{organizationId}/{allPaths=**} {
+      // Allow read if user belongs to organization
+      allow read: if isAuthenticated() && belongsToOrganization(organizationId);
+      
+      // Allow write (upload) for authenticated users in the organization
+      // Max 2GB file size for large video files
+      allow write: if isAuthenticated() 
+                   && belongsToOrganization(organizationId)
+                   && request.resource.size <= 2 * 1024 * 1024 * 1024; // 2GB limit
       
       // Allow delete for authenticated users in the organization
       allow delete: if isAuthenticated() && belongsToOrganization(organizationId);
