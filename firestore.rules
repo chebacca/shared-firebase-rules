@@ -2526,18 +2526,18 @@ service cloud.firestore {
           request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
       }
     }
-    match /organizations/{orgId}/cloudIntegrations/{integrationId} {
-      allow read: if belongsToOrganization(orgId) || 
-                   (request.auth.token.email == 'admin.clipshow@example.com' && orgId == 'clip-show-pro-productions');
-      allow create: if (belongsToOrganization(orgId) || 
-                        (request.auth.token.email == 'admin.clipshow@example.com' && orgId == 'clip-show-pro-productions')) && 
-                     isAuthenticated();
-      allow update: if (belongsToOrganization(orgId) || 
-                        (request.auth.token.email == 'admin.clipshow@example.com' && orgId == 'clip-show-pro-productions')) && 
-                     (isOwnerOrAdmin() || request.auth.uid == resource.data.userId);
-      allow delete: if (belongsToOrganization(orgId) || 
-                        (request.auth.token.email == 'admin.clipshow@example.com' && orgId == 'clip-show-pro-productions')) && 
-                     (isOwnerOrAdmin() || request.auth.uid == resource.data.userId);
+    // Unified OAuth connections - READ ONLY for org members
+    // Only Cloud Functions can write (via admin SDK)
+    match /organizations/{orgId}/cloudIntegrations/{provider} {
+      allow read: if belongsToOrganization(orgId);
+      allow write: if false; // Only Cloud Functions can write (using admin SDK)
+    }
+    
+    // OAuth states - temporary, auto-expire
+    match /oauthStates/{stateId} {
+      allow read: if isAuthenticated() && 
+                   resource.data.userId == request.auth.uid;
+      allow write: if false; // Only Cloud Functions can write
     }
     match /organizations/{orgId}/indexedFiles/{fileId} {
       allow read: if belongsToOrganization(orgId);
@@ -2584,47 +2584,20 @@ service cloud.firestore {
       allow delete: if belongsToOrganization(orgId) && 
         (isOwnerOrAdmin() || request.auth.uid == resource.data.userId);
     }
+    // DEPRECATED: Old OAuth connection collections
+    // These are being migrated to cloudIntegrations/{provider}
+    // Marked as read-only to prevent new writes, will be deleted after migration
     match /organizations/{orgId}/boxConnections/{connectionId} {
       allow read: if belongsToOrganization(orgId);
-      allow create, update: if belongsToOrganization(orgId) && 
-        isAuthenticated() && (
-          (request.resource.data.type == 'user' && request.resource.data.userId == request.auth.uid) ||
-          (request.resource.data.type == 'organization' && isOwnerOrAdmin())
-        );
-      allow delete: if belongsToOrganization(orgId) && 
-        isAuthenticated() && (
-          (resource.data.type == 'user' && resource.data.userId == request.auth.uid) ||
-          resource.data.connectedBy == request.auth.uid ||
-          isOwnerOrAdmin()
-        );
+      allow write: if false; // Deprecated - use cloudIntegrations/box instead
     }
     match /organizations/{orgId}/googleConnections/{connectionId} {
       allow read: if belongsToOrganization(orgId);
-      allow create, update: if belongsToOrganization(orgId) && 
-        isAuthenticated() && (
-          (request.resource.data.type == 'user' && request.resource.data.userId == request.auth.uid) ||
-          (request.resource.data.type == 'organization' && isOwnerOrAdmin())
-        );
-      allow delete: if belongsToOrganization(orgId) && 
-        isAuthenticated() && (
-          (resource.data.type == 'user' && resource.data.userId == request.auth.uid) ||
-          resource.data.connectedBy == request.auth.uid ||
-          isOwnerOrAdmin()
-        );
+      allow write: if false; // Deprecated - use cloudIntegrations/google instead
     }
     match /organizations/{orgId}/dropboxConnections/{connectionId} {
       allow read: if belongsToOrganization(orgId);
-      allow create, update: if belongsToOrganization(orgId) && 
-        isAuthenticated() && (
-          (request.resource.data.type == 'user' && request.resource.data.userId == request.auth.uid) ||
-          (request.resource.data.type == 'organization' && isOwnerOrAdmin())
-        );
-      allow delete: if belongsToOrganization(orgId) && 
-        isAuthenticated() && (
-          (resource.data.type == 'user' && resource.data.userId == request.auth.uid) ||
-          resource.data.connectedBy == request.auth.uid ||
-          isOwnerOrAdmin()
-        );
+      allow write: if false; // Deprecated - use cloudIntegrations/dropbox instead
     }
     match /airtableCredentials/{credentialId} {
       allow read: if isAuthenticated() && 
@@ -2818,12 +2791,11 @@ service cloud.firestore {
       );
       allow delete: if isAuthenticated() && isOwnerOrAdmin();
     }
+    // DEPRECATED: Old Slack connection collection
+    // Being migrated to cloudIntegrations/slack
     match /organizations/{orgId}/slackConnections/{connectionId} {
       allow read: if isAuthenticated() && belongsToOrganization(orgId);
-      allow create, update: if isAuthenticated() && belongsToOrganization(orgId) && (
-        isOwnerOrAdmin() ||
-        request.resource.data.type == 'user' && request.auth.uid == request.resource.data.userId
-      );
+      allow write: if false; // Deprecated - use cloudIntegrations/slack instead
       allow delete: if isAuthenticated() && belongsToOrganization(orgId) && (
         isOwnerOrAdmin() ||
         resource.data.type == 'user' && request.auth.uid == resource.data.userId

@@ -587,6 +587,37 @@ service firebase.storage {
     }
     
     // ============================================================================
+    // SESSION AND REVIEW MEDIA FILES
+    // ============================================================================
+    
+    // Session media files
+    // Path: sessions/{sessionId}/media/{allPaths=**}
+    match /sessions/{sessionId}/media/{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() 
+                   && request.resource.size <= 2 * 1024 * 1024 * 1024; // 2GB limit
+      allow delete: if isAuthenticated();
+    }
+    
+    // Review session media files
+    // Path: reviews/{reviewId}/media/{allPaths=**}
+    match /reviews/{reviewId}/media/{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() 
+                   && request.resource.size <= 2 * 1024 * 1024 * 1024; // 2GB limit
+      allow delete: if isAuthenticated();
+    }
+    
+    // Workflow step media files
+    // Path: workflow-steps/{stepId}/media/{allPaths=**}
+    match /workflow-steps/{stepId}/media/{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() 
+                   && request.resource.size <= 2 * 1024 * 1024 * 1024; // 2GB limit
+      allow delete: if isAuthenticated();
+    }
+    
+    // ============================================================================
     // CATCH-ALL RULE
     // ============================================================================
     
