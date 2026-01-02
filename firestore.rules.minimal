@@ -1,0 +1,42 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    function getUserClaims() {
+      return request.auth.token;
+    }
+    function isOwnerOrAdmin() {
+      return isAuthenticated() && (
+        getUserClaims().get('isOwnerOrAdmin', false) ||
+        getUserClaims().get('role', '') in ['OWNER', 'ADMIN', 'SUPERADMIN', 'SUPER_ADMIN']
+      );
+    }
+    function belongsToOrganization(organizationId) {
+      return getUserClaims().get('organizationId', '') == organizationId || 
+             organizationId in getUserClaims().get('allowedOrganizations', []);
+    }
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if isAuthenticated() && (request.auth.uid == userId || isOwnerOrAdmin());
+    }
+
+    match /teamMembers/{memberId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (
+        request.auth.uid == resource.data.userId || isOwnerOrAdmin()
+      );
+    }
+
+    // Allow everything else for now to unblock development if needed? 
+    // No, better to be safe.
+    match /{document=**} {
+      allow read, write: if isOwnerOrAdmin();
+    }
+  }
+}
