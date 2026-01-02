@@ -618,6 +618,31 @@ service firebase.storage {
     }
     
     // ============================================================================
+    // WARDROBE & SET INVENTORY STORAGE
+    // ============================================================================
+    
+    // Wardrobe images and files
+    // Path: wardrobe/{organizationId}/{allPaths=**}
+    match /wardrobe/{organizationId}/{allPaths=**} {
+      allow read: if isAuthenticated() && belongsToOrganization(organizationId);
+      allow write: if isAuthenticated() && belongsToOrganization(organizationId)
+                   && request.resource.size <= 50 * 1024 * 1024 // 50MB limit
+                   && request.resource.contentType.matches('image/.*');
+      allow delete: if isAuthenticated() && belongsToOrganization(organizationId);
+    }
+    
+    // Set Inventory images, design sketches, and PDFs
+    // Path: setInventory/{organizationId}/{allPaths=**}
+    match /setInventory/{organizationId}/{allPaths=**} {
+      allow read: if isAuthenticated() && belongsToOrganization(organizationId);
+      allow write: if isAuthenticated() && belongsToOrganization(organizationId)
+                   && request.resource.size <= 50 * 1024 * 1024 // 50MB limit
+                   && (request.resource.contentType.matches('image/.*') ||
+                       request.resource.contentType.matches('application/pdf'));
+      allow delete: if isAuthenticated() && belongsToOrganization(organizationId);
+    }
+    
+    // ============================================================================
     // CATCH-ALL RULE
     // ============================================================================
     
