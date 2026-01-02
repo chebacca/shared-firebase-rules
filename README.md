@@ -69,6 +69,20 @@ Rules are deployed automatically during:
 - `deploy-dashboard.sh` - Syncs and deploys rules
 - Manual: `firebase deploy --only firestore:rules --project backbone-logic`
 
+### Deployment Steps
+
+1. **Update Rules**: Edit `shared-firebase-rules/firestore.rules`
+2. **Sync to Projects**: Copy to project-specific locations if needed
+3. **Deploy**: Run `firebase deploy --only firestore:rules --project backbone-logic`
+4. **Verify**: Check Firebase Console to confirm rules are active
+
+### Storage Rules
+
+Storage rules are in `shared-firebase-rules/storage.rules` and deployed with:
+```bash
+firebase deploy --only storage --project backbone-logic
+```
+
 ---
 
 **Last Updated**: Rules coordination established - shared file is source of truth
