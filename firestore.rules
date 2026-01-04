@@ -36,11 +36,31 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
+    function getProject(projectId) {
+      return get(/databases/$(database)/documents/projects/$(projectId));
+    }
+
     function canAccessProject(projectId) {
+      let project = getProject(projectId);
       return isAuthenticated() && (
         projectId in getUserClaims().get('projectAssignments', {}) ||
-        isOwnerOrAdmin()
+        isOwnerOrAdmin() ||
+        (project.data.scope == 'GLOBAL' && belongsToOrganization(project.data.organizationId))
       );
+    }
+
+    // Check if request is from Licensing Website
+    // This can be determined by custom claims or app identifier
+    function isLicensingWebsite() {
+      return getUserClaims().get('appId', '') == 'LICENSING' ||
+             getUserClaims().get('applicationType', '') == 'LICENSING';
+    }
+
+    // Check if a project can be modified
+    function canModifyProject(projectData) {
+      return (projectData.scope == 'GLOBAL' || projectData.applicationType == 'GLOBAL')
+        ? (isLicensingWebsite() || isOwnerOrAdmin())
+        : true;
     }
 
     // ============================================
@@ -75,10 +95,24 @@ service cloud.firestore {
       }
     }
 
-    // PROJECTS: Standard project-based access
+    // PROJECTS: Standard project-based access with global project restrictions
     match /projects/{projectId} {
+      // Allow read for all authenticated users with access
       allow read: if isAuthenticated() && (canAccessProject(projectId) || isOwnerOrAdmin());
-      allow write, update: if canAccessProject(projectId) || isOwnerOrAdmin();
+      
+      // Allow create for authenticated users in the organization
+      allow create: if isAuthenticated() && 
+                      belongsToOrganization(request.resource.data.organizationId);
+      
+      // Allow update/delete only if:
+      // 1. Project is APP_SPECIFIC (not global), OR
+      // 2. Request is from Licensing Website, OR
+      // 3. User is Owner/Admin
+      allow update, delete: if isAuthenticated() && (
+        canAccessProject(projectId) || isOwnerOrAdmin()
+      ) && (
+        canModifyProject(resource.data) || isOwnerOrAdmin()
+      );
       
       match /{allPaths=**} {
         allow read, write: if canAccessProject(projectId) || isOwnerOrAdmin();
@@ -114,6 +148,44 @@ service cloud.firestore {
       allow read: if isOwnerOrAdmin();
       allow create: if isAuthenticated();
       allow update, delete: if isOwnerOrAdmin();
+    }
+
+    // ============================================
+    // PROJECT RESOURCE ASSIGNMENTS
+    // ============================================
+
+    // Project Contact Assignments
+    match /projectContactAssignments/{assignmentId} {
+      allow read: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        canAccessProject(resource.data.projectId) ||
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && (
+        belongsToOrganization(request.resource.data.organizationId) &&
+        (isOwnerOrAdmin() || canAccessProject(request.resource.data.projectId))
+      );
+      allow update, delete: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) &&
+        (isOwnerOrAdmin() || canAccessProject(resource.data.projectId))
+      );
+    }
+
+    // Project Inventory Assignments
+    match /projectInventoryAssignments/{assignmentId} {
+      allow read: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) ||
+        canAccessProject(resource.data.projectId) ||
+        isOwnerOrAdmin()
+      );
+      allow create: if isAuthenticated() && (
+        belongsToOrganization(request.resource.data.organizationId) &&
+        (isOwnerOrAdmin() || canAccessProject(request.resource.data.projectId))
+      );
+      allow update, delete: if isAuthenticated() && (
+        belongsToOrganization(resource.data.organizationId) &&
+        (isOwnerOrAdmin() || canAccessProject(resource.data.projectId))
+      );
     }
 
     // ============================================
